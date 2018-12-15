@@ -9,6 +9,15 @@ void TaylorCone::init(double c1, double b0){
 
 }
 
+double TaylorCone::curv(double r, double z, double dr, double dz, double ddr, double ddz) {
+	if (r > 1e-11) {
+		return	(dr * ddz - dz * ddr) / pow(dr * dr + dz * dz, 1.5) + dz / r / sqrt(dr * dr + dz * dz);
+	}
+	else {
+		return ddz / dr / dr * 2.;
+	}
+}
+
 
 
 double TaylorCone::fD2(int order, double h0, double h1, double y0, double y1, double y2, int location) {
@@ -167,11 +176,10 @@ void TaylorCone::computeCoefabc(double c1, double b0) {
 	b[1] = -0.848581976487259 * b0 * c1; // old
 	c[1] = c1;
 
-	a[2] = -2.336057766096800 * c1 - 1.155514902883830 * c1 * c1* c1 + 1.584211046805990 * b0 * b0 * c1;//old	
+	//a[2] = -2.336057766096800 * c1 - 1.155514902883830 * c1 * c1* c1 + 1.584211046805990 * b0 * b0 * c1;//old	
 	c[2] = 0.0;	
 
-	a[1] = 0.860436686125679 + 1.062749866616300 * c1 * c1
-		- 0.474980817676140 * b0 * b0;
+	//a[1] = 0.860436686125679 + 1.062749866616300 * c1 * c1	- 0.474980817676140 * b0 * b0;
 	a[2] = -2.336057766096800 * c1 - 1.155514902883830 * c1 * c1* c1
 		+ 1.584211046805990 * b0 * b0 * c1;
 	a[3] = -0.433421293527112 + 1.563930669354330 * c1 * c1 + 1.356140305325190 * pow(c1, 4.0)
@@ -287,7 +295,7 @@ double TaylorCone::velocityPotentialFarField(double r, double z, const double (&
 void TaylorCone::prepareBem(int type, const Eigen::MatrixX2d &xy, int shift, Bem &bem) {
 
 	bem.settings.indexShift(shift);
-	bem.settings.order(2);
+	bem.settings.order(1);
 	bem.settings.qdOrder(20);
 	double dx, ddx, dy, ddy;
 
@@ -377,9 +385,113 @@ void TaylorCone::SD2LR(const Eigen::MatrixXd &S, const Eigen::MatrixXd &D, int n
 
 }
 
-void TaylorCone::computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, Eigen::VectorXd &residue) const {
+void TaylorCone::computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, Eigen::VectorXd &residue, Eigen::VectorXd &coord) {
+	const int nCone = bemCone.node().r.rows();
+	const int o = bemCone.settings.order();
+	residue.setZero(nCone);
+	coord.setZero(nCone);
+	Eigen::VectorXd h; h.setZero(nCone - 1);
+
+	for (int k = 0; k < h.size() ; k++) {
+		if (k / o == 0) {
+			h(k) = bemCone.e()[k / o].arc() * 1. / o;
+		}
+		else {
+			h(k) = bemCone.e()[k / o].arc() * 1. / o;
+		}		
+	}	
+	for (int k = 0; k < nCone; k++) {
+		double r = bemCone.node().r(k, 0), dr = bemCone.node().r(k, 1), ddr = bemCone.node().r(k, 2);
+		double z = bemCone.node().z(k, 0), dz = bemCone.node().z(k, 1), ddz = bemCone.node().z(k, 2);
+		double nr = -dz / sqrt(dr * dr + dz * dz); // equivalent to -sz
+		double nz = dr / sqrt(dr * dr + dz * dz); // equivalent to sr
+		double xn = r * nr + z * nz;
+		double xs = r * nz + z * (-nr);
+		double phis = 0.;
+
+		if (k != 0) {
+			if (k == nCone - 1) {
+				double h0 = h(k - 3), h1 = h(k - 2), h2 = h(k - 1);
+				double y0 = phi(k - 3), y1 = phi(k - 2), y2 = phi(k - 1), y3 = phi(k);
+				phis = fD3(1, h0, h1, h2, y0, y1, y2, y3, 3);
+
+			} 
+			else if (k == nCone - 2) {			
+				double h0 = h(k - 3), h1 = h(k - 2), h2 = h(k - 1);
+				double y0 = phi(k - 3), y1 = phi(k - 2), y2 = phi(k - 1), y3 = phi(k);
+				phis = fD3(1, h0, h1, h2, y0, y1, y2, y3, 3);
+
+			}
+			else if (k == nCone - 3) {				
+				double h0 = h(k - 3), h1 = h(k - 2), h2 = h(k - 1);
+				double y0 = phi(k - 3), y1 = phi(k - 2), y2 = phi(k - 1), y3 = phi(k);
+				phis = fD3(1, h0, h1, h2, y0, y1, y2, y3, 3);
+			}
+			else {
+				double h0 = h(k);
+				double h1 = h(k + 1);
+				double h2 = h(k + 2);
+				double y0 = phi(k);
+				double y1 = phi(k + 1);
+				double y2 = phi(k + 2);
+				double y3 = phi(k + 3);
+				phis = fD3(1, h0, h1, h2, y0, y1, y2,y3, 0);
+			}
+
+		}
+		
 
 
+		residue(k) += - curv(r, z, dr, dz, ddr, ddz);		
+		residue(k) += -2. / 9. * xn * xn;
+		residue(k) += -1. / 3 * phi(k);
+		residue(k) += 0.5 * phis * phis + 2. *xs * phis / 3.;
+		//residue(k) = 2./ 3. * xs * phis - 1./3. * phi(k) ;
+		//residue(k) =  phi(k);
+		coord(k) = r;
+		
+	}
+};
 
 
+void TaylorCone::perturbFluid(const Eigen::MatrixX2d &xyBase, const Bem &bemConeBase, const Bem &bemPatch, int iKnotPerturb, double epsilon, Eigen::VectorXd &output) {
+
+	//int nKnotPerturb = 10;
+	Eigen::MatrixXd xy0 = xyBase;
+
+	
+	int iNodePerturb = bemConeBase.settings.order() * iKnotPerturb;
+	double dr = bemConeBase.node().r(iNodePerturb, 1); 
+	double dz = bemConeBase.node().z(iNodePerturb, 1);
+	xy0(iKnotPerturb, 0) += -dz / sqrt(dr * dr + dz * dz) * epsilon;
+	xy0(iKnotPerturb, 1) += dr / sqrt(dr * dr + dz * dz) * epsilon;
+	
+	
+	
+	
+	Bem bemConePerturb;
+	prepareBem(0, xy0, 0, bemConePerturb);
+	int n0 = bemConePerturb.node().r.rows();
+	int n1 = bemPatch.node().r.rows();	
+	int nTotal = n0 + n1;
+
+	Eigen::MatrixXd S, D, L, R;
+	S.setZero(nTotal, nTotal);	D.setZero(nTotal, nTotal);
+	R.setZero(nTotal, nTotal);	L.setZero(nTotal, nTotal);
+	Bem::assembly(bemConePerturb, bemConePerturb, S, D);	Bem::assembly(bemConePerturb, bemPatch, S, D);
+	Bem::assembly(bemPatch, bemConePerturb, S, D);	Bem::assembly(bemPatch, bemPatch, S, D);
+	Eigen::VectorXd rhs, lhs;
+	setFluidBC(bemConePerturb, bemPatch, rhs);
+	for (int i = 0; i < D.rows(); i++) { D(i, i) = -(D.row(i).sum() - D(i, i)); }
+	D.row(n0 - 1) *= 0.;
+	D(n0 - 1, n0 - 1) = 1.0;
+	D(n0 - 1, n0) = -1.0;
+	S.row(n0 - 1) *= 0.;
+	TaylorCone::SD2LR(S, D, n0, L, R);
+	Eigen::VectorXd phi = L.fullPivLu().solve(R*rhs);
+	Eigen::VectorXd coord;
+	TaylorCone::computeResidue(bemConePerturb, phi, output, coord);
+	//std::ofstream file("./Output/answer0.txt");
+	//for (int k = 0; k < n0; k++) { file << coord(k) << '\t' << output(k) << '\n'; }
+	//file.close();
 };

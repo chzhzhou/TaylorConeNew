@@ -70,12 +70,13 @@ void printSpline(const Spline &sp, const std::string &name) {
 }
 
 int main() {
-	TaylorCone tc(-0.5,0.0);	
-	//std::cout << tc.c[0] << "\t" << tc.c[1] << "\t" << tc.c[2] << "\t" << tc.c[3] << "\t" << tc.c[4] << "\n";
-	int nConeKnots = 100 + 1;	
-	int nElectricKnots = (int)floor((nConeKnots - 1) * 0.86) + 1;
-	int nVelocityKnots = (int)floor((nConeKnots - 1) * 2.28) + 1;
-	tc._xy0 = TaylorCone::generateCone(3.5,50.,tc.c, nConeKnots);
+	TaylorCone tc(-0.70,0.0);	
+	std::cout << tc.a[0] << "\t" << tc.a[1] << "\t" << tc.a[2] << "\t" << tc.a[3] << "\t" << tc.a[4] << "\n";
+	std::cout << tc.c[0] << "\t" << tc.c[1] << "\t" << tc.c[2] << "\t" << tc.c[3] << "\t" << tc.c[4] << "\n";
+	int nConeKnots = 250 + 1;	
+	int nElectricKnots = (int)floor((nConeKnots - 1) * 1) + 1;
+	int nVelocityKnots = (int)floor((nConeKnots - 1) * 2.5) + 1;
+	tc._xy0 = TaylorCone::generateCone(1.5,50.,tc.c, nConeKnots);
 	tc._xy1 = TaylorCone::generateCircle(tc._xy0(tc._xy0.rows() - 1, 0), tc._xy0(tc._xy0.rows() - 1, 1), 1, (int)(nElectricKnots));
 	tc._xy2 = TaylorCone::generateCircle(tc._xy0(tc._xy0.rows() - 1, 0), tc._xy0(tc._xy0.rows() - 1, 1), 0, (int)(nVelocityKnots));
 
@@ -83,42 +84,117 @@ int main() {
 	int n0 = tc.bem0.node().r.rows();
 	printSpline(tc.bem0.sp(), "./Output/sp0.txt");
 
+
 	tc.prepareBem(1, tc._xy1, n0, tc.bem1);
 	int n1 = tc.bem1.node().r.rows();
 	printSpline(tc.bem1.sp(), "./Output/sp1.txt");
 
 	tc.prepareBem(2, tc._xy2, n0, tc.bem2);
 	int n2 = tc.bem2.node().r.rows();
-	printSpline(tc.bem2.sp(), "./Output/sp2.txt");	
-	// ------------------------------------
-	Eigen::MatrixXd S, D, L, R;
-	int nTotal = n0 + n1;
-	S.setZero(nTotal, nTotal);	D.setZero(nTotal, nTotal);
-	R.setZero(nTotal, nTotal);	L.setZero(nTotal, nTotal);
-	Bem::Properties::tic();
-	Bem::assembly(tc.bem0, tc.bem0, S, D);	Bem::assembly(tc.bem0, tc.bem1, S, D);
-	Bem::assembly(tc.bem1, tc.bem0, S, D);	Bem::assembly(tc.bem1, tc.bem1, S, D);	
-	Bem::Properties::toc();
-	//std::cout << D.rowwise().sum();	
-
-	Eigen::VectorXd rhs, lhs;
-	tc.setFluidBC(tc.bem0, tc.bem1, rhs);
-
-	for (int i = 0; i < D.rows(); i++) {
-		D(i, i) = -(D.row(i).sum() - D(i, i));
-	}
-
-	D.row(n0 - 1) *= 0.;
-	D(n0 - 1, n0 - 1) = 1.0;
-	D(n0 - 1, n0) = -1.0;
-	S.row(n0 - 1) *= 0.;
+	//printSpline(tc.bem2.sp(), "./Output/sp2.txt");	
 	
-	TaylorCone::SD2LR(S, D, n0, L, R);
+	int nTotal = n0 + n1;
+	
+	Eigen::VectorXd res, resPerturb,tmp;
+	double epsilon = 0.005;
+	Eigen::MatrixXd J(n0, nConeKnots - 1);
 
-	Eigen::VectorXd answer = L.fullPivLu().solve(R*rhs);	
-	std::ofstream file("./Output/answer0.txt");
-	for (int k = 0; k < n0; k++) {	file << tc.bem0.node().r(k,0) <<'\t' << answer(k) << '\n';	}	
-	file.close();
+	
+	
+	tc.perturbFluid(tc._xy0, tc.bem0, tc.bem1, 0, 0.,res);		
+	printf("error = %5.5f\n", res.norm());
+	for (int j = 0; j < J.cols(); j++) {
+		printf("\r%03d", j);
+		tc.perturbFluid(tc._xy0, tc.bem0, tc.bem1, j, epsilon, resPerturb);
+		J.col(j) = (resPerturb - res) / epsilon;
+		
+	}
+	printf("\n-----------------\n");
+	
+
+	
+	
+	int counter = 1;
+
+	while (counter < 15)	{
+		tmp = J.colPivHouseholderQr().solve(-res);
+		for (int k = 0; k < tmp.size(); k++) {
+			int iNodePerturb = tc.bem0.settings.order() * k;
+			double dr = tc.bem0.node().r(iNodePerturb, 1);
+			double dz = tc.bem0.node().z(iNodePerturb, 1);
+			tc._xy0(k, 0) += -dz / sqrt(dr * dr + dz * dz) * tmp(k) * 0.95;
+			tc._xy0(k, 1) +=  dr / sqrt(dr * dr + dz * dz) * tmp(k) * 0.95;
+		}
+		tc.prepareBem(0, tc._xy0, 0, tc.bem0);	
+		printSpline(tc.bem0.sp(), "./Output/sp0.txt");
+		std::ofstream file("./Output/answer0.txt");
+		for (int k = 0; k < tmp.size(); k++) {
+			file << tc._xy0(k, 0) << '\t' << tc._xy0(k, 1) << '\n';
+		}
+		file.close();
+		res.setZero();
+
+		tc.perturbFluid(tc._xy0, tc.bem0, tc.bem1, 0, 0., res);
+		printf("\n error = %5.5f\n", res.cwiseAbs().maxCoeff());
+		
+		if (counter % 5 == 0) {
+			J.setZero();
+			//tc.perturbFluid(tc._xy0, tc.bem0, tc.bem1, 0, 0., res);
+			for (int j = 0; j < J.cols(); j++) {
+				printf("\r%03d", j);
+				resPerturb.setZero();
+				tc.perturbFluid(tc._xy0, tc.bem0, tc.bem1, j, epsilon, resPerturb);
+				J.col(j) = (resPerturb - res) / epsilon;
+
+			}
+		}
+		
+		counter = counter + 1;
+		std::cout << res << "\n";
+	}
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	// ------------------------------------	
+	
+	//Eigen::MatrixXd S, D, L, R;		
+	//S.setZero(nTotal, nTotal);	D.setZero(nTotal, nTotal);
+	//R.setZero(nTotal, nTotal);	L.setZero(nTotal, nTotal);	
+	//Bem::assembly(tc.bem0, tc.bem0, S, D);	Bem::assembly(tc.bem0, tc.bem1, S, D);
+	//Bem::assembly(tc.bem1, tc.bem0, S, D);	Bem::assembly(tc.bem1, tc.bem1, S, D);	
+	//Eigen::VectorXd rhs, lhs;
+	//tc.setFluidBC(tc.bem0, tc.bem1, rhs);
+	//for (int i = 0; i < D.rows(); i++) {	D(i, i) = -(D.row(i).sum() - D(i, i));}
+	//D.row(n0 - 1) *= 0.;
+	//D(n0 - 1, n0 - 1) = 1.0;
+	//D(n0 - 1, n0) = -1.0;
+	//S.row(n0 - 1) *= 0.;	
+	//TaylorCone::SD2LR(S, D, n0, L, R);
+	//Eigen::VectorXd phi = L.fullPivLu().solve(R*rhs);	
+	//Eigen::VectorXd residue, coord;
+	//TaylorCone::computeResidue(tc.bem0, phi, residue, coord);
+
+	
+
+
+
+	//std::ofstream file("./Output/answer0.txt");
+	//for (int k = 0; k < n0; k++) {	file << coord(k) <<'\t' << residue(k) << '\n';	}
+	//file.close();
 
 	//file.open("./Output/xy0.txt");
 	//file << tc._xy0 << '\n';

@@ -20,7 +20,7 @@ public:
 	void computeCoefabc(double c1, double b0);
 	void prepareBem(int type, const Eigen::MatrixX2d &xy, int shift, Bem &bem);
 	void setFluidBC(const Bem &bemCone, const Bem &bemPatch, Eigen::VectorXd &fluidBC) const;
-	void computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi,   Eigen::VectorXd &residue) const;
+	void perturbFluid(const Eigen::MatrixX2d &xy, const Bem &bemCone, const Bem &bemPatch, int iKnotPerturb, double epsilon, Eigen::VectorXd &output);
 
 
 public:
@@ -40,6 +40,8 @@ public:
 	static double velocityPotentialFarField(double r, double z, const double (&a)[5]);
 
 	static void SD2LR(const Eigen::MatrixXd &S, const Eigen::MatrixXd &D, int nSwap, Eigen::MatrixXd &L, Eigen::MatrixXd &R);
+	static double curv(double r, double z, double dr, double dz, double ddr, double ddz);
+	static void computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, Eigen::VectorXd &residue, Eigen::VectorXd &coord);
 
 	
 
