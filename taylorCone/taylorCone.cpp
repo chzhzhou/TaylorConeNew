@@ -18,8 +18,6 @@ double TaylorCone::curv(double r, double z, double dr, double dz, double ddr, do
 	}
 }
 
-
-
 double TaylorCone::fD2(int order, double h0, double h1, double y0, double y1, double y2, int location) {
 	switch (order)	{
 	case 1: {
@@ -48,7 +46,6 @@ double TaylorCone::fD2(int order, double h0, double h1, double y0, double y1, do
 		break;
 	}
 };
-
 double TaylorCone::fD3(int order, double h0, double h1, double h2, double y0, double y1, double y2, double y3, int location) {
 	switch (order) {
 	case 1: {
@@ -119,6 +116,7 @@ double TaylorCone::fD4(int order, double h0, double h1, double h2, double h3, do
 	}
 	
 };
+
 void TaylorCone::circleDerivativeBegin(const Eigen::MatrixX2d &xy, double &dx, double &ddx, double &dy, double &ddy) {	
 	double x0 = xy(0, 0), y0 = xy(0, 1);
 	double x1 = xy(1, 0), y1 = xy(1, 1);
@@ -129,7 +127,7 @@ void TaylorCone::circleDerivativeBegin(const Eigen::MatrixX2d &xy, double &dx, d
 	double h2 = sqrt((x3 - x2)*(x3 - x2) + (y3 - y2)*(y3 - y2));
 
 	double curvature = -2.0 / sqrt(x0 * x0 + y0 * y0);
-	double slope = abs(x0) / abs(y0);
+	double slope = std::abs(x0) / std::abs(y0);
 	if (xy(xy.rows() - 1, 1) > 0) {	curvature = curvature * -1.;}
 	
 	dx = fD3(1, h0, h1, h2, x0, x1, x2, x3, 0);
@@ -165,8 +163,6 @@ void TaylorCone::coneDerivativeEnd(const Eigen::MatrixX2d &xy, double c[5], doub
 	ddy = (ddx * dy + curvature * pow(dx * dx + dy * dy, 1.5)) / dx - dy * (dx * dx + dy * dy) / dx / x3;
 }
 
-
-
 void TaylorCone::computeCoefabc(double c1, double b0) {
 	a[0] = 2.7142175397111330 * c1;
 	b[0] = b0;
@@ -192,6 +188,14 @@ void TaylorCone::computeCoefabc(double c1, double b0) {
 	c[3] = -0.275783438603136 * c1 + 0.210659453420660 * b0 * b0 * c1 - 0.069483517708871 * c1 * c1 *c1;
 	c[4] = -0.045843694202325 + 0.050613544746824 * b0*b0 - 0.013969919726216 * pow(b0, 4.0) - 0.587515210204774 * c1* c1
 		+ 0.579439247828955 * b0 * b0 *c1 * c1 - 0.139013862957991 * pow(c1, 4.0);
+
+	//b[0] = b0;
+	//b[1] = -0.848581976487259 * b0 * c1;
+	b[2] = -1.290655029188520 * b0 * c1 * c1;
+	b[3] = 1.887300354735200 * b0 * c1 - 1.441629936818880 * b0 * b0 *b0 * c1 - 5.508686000286550 * b0 * c1 * c1 * c1;
+	b[4] = -0.957571779297224 * b0 + 1.057203241210380 * pow(b0, 3.0) - 0.291800238214520 * pow(b0, 5.0) + 16.866940785206700 * b0 * c1 * c1
+		- 10.154738911572600 * pow(b0, 3.0)* c1* c1 - 64.833275833138900 * b0 * pow(c1, 4.0);
+
 	
 }
 
@@ -204,8 +208,9 @@ Eigen::MatrixX2d TaylorCone::generateCircle(double angle0, double angle1, double
 		xy(i, 0) = radius * sin(theta) ;
 		xy(i, 1) = radius * cos(theta) ;
 	}
-	if (abs(angle0) < 1e-12) { xy(0, 0) = 0.0; }
-	if (abs(angle1 - M_PI) < 1e-12) { xy(n - 1, 0) = 0.0; }
+	if (std::abs(angle0) < 1e-12) { xy(0, 0) = 0.0; }
+	if (std::abs(angle1 - M_PI) < 1e-12) { xy(n - 1, 0) = 0.0; }
+	
 
 	return xy;
 }
@@ -271,6 +276,17 @@ double TaylorCone::harmonicGrow(double r, double z, int l, int divide) {
 	}
 };
 
+double TaylorCone::dHarmonicGrowdR(double r, double z, int l, int divide) {
+	double R = sqrt(r * r + z * z);
+	double cosTh = z / R;
+	if (divide == 0) {
+		return l * pow(R, l - 1.) * Numeric::legendreP(l, cosTh);
+	}
+	else {
+		return l/2. * pow(R, l / 2. - 1.) * Numeric::legendreP(l, 2, cosTh);
+	}
+};
+
 double TaylorCone::harmonicDecay(double r, double z, int l, int divide) {
 	double R = sqrt(r * r + z * z);
 	double cosTh = z / R;
@@ -282,20 +298,43 @@ double TaylorCone::harmonicDecay(double r, double z, int l, int divide) {
 	}
 };
 
+double TaylorCone::dHarmonicDecaydR(double r, double z, int l, int divide) {
+	double R = sqrt(r * r + z * z);
+	double cosTh = z / R;
+	if (divide == 0) {
+		return (-1. - l) * pow(R, -2. - l) * Numeric::legendreP(l, cosTh);
+	}
+	else {
+		return (-1. - l / 2.) * pow(R, -2. - l / 2.) * Numeric::legendreP(l, 2, cosTh);
+	}
+};
 
 double TaylorCone::velocityPotentialFarField(double r, double z, const double (&a)[5]) {
 	double flip = -1;
 	return
-		a[0] * harmonicGrow(r,  flip * z, 1, 2) +
+		a[0] * harmonicGrow(r, flip * z, 1, 2) +
 		a[1] * harmonicDecay(r, flip * z, 0) +
-		a[2] * harmonicDecay(r, flip * z, 3, 2)+
-		a[3] * harmonicDecay(r, flip * z, 3);
+		a[2] * harmonicDecay(r, flip * z, 3, 2) +
+		a[3] * harmonicDecay(r, flip * z, 3) +
+		a[4] * harmonicDecay(r, flip * z, 5, 2);
+
+};
+
+double TaylorCone::electricPotentialFarField(double r, double z, const double(&b)[5]) {
+	double flip = +1;
+	return
+		b[0] * dHarmonicGrowdR(r, flip * z, 1, 2) +
+		b[1] * dHarmonicDecaydR(r, flip * z, 0) +
+		b[2] * dHarmonicDecaydR(r, flip * z, 3, 2) +
+		b[3] * dHarmonicDecaydR(r, flip * z, 3) +
+		b[4] * dHarmonicDecaydR(r, flip * z, 5, 2);
+
 };
 
 void TaylorCone::prepareBem(int type, const Eigen::MatrixX2d &xy, int shift, Bem &bem) {
 
 	bem.settings.indexShift(shift);
-	bem.settings.order(1);
+	bem.settings.order(2);
 	bem.settings.qdOrder(20);
 	double dx, ddx, dy, ddy;
 
@@ -339,7 +378,6 @@ void TaylorCone::prepareBem(int type, const Eigen::MatrixX2d &xy, int shift, Bem
 };
 
 void TaylorCone::setFluidBC(const Bem &bemCone, const Bem &bemPatch, Eigen::VectorXd &fluidBC) const {
-
 	int nCone = bemCone.node().r.rows();
 	int nPatch = bemPatch.node().r.rows();
 	int nTotal = nCone + nPatch;
@@ -358,15 +396,30 @@ void TaylorCone::setFluidBC(const Bem &bemCone, const Bem &bemPatch, Eigen::Vect
 			int kk = k - nCone;
 			double r = bemPatch.node().r(kk, 0), dr = bemPatch.node().r(kk, 1);
 			double z = bemPatch.node().z(kk, 0), dz = bemPatch.node().z(kk, 1);
-			double nr = -dz / sqrt(dr * dr + dz * dz);
-			double nz = dr / sqrt(dr * dr + dz * dz);
+			//double nr = -dz / sqrt(dr * dr + dz * dz);
+			//double nz = dr / sqrt(dr * dr + dz * dz);
 			fluidBC(k) = velocityPotentialFarField(r, z, a);
 		}
 	}
-
-
 };
 
+void TaylorCone::setVacuumBC(const Bem &bemCone, const Bem &bemPatch, Eigen::VectorXd &vacuumBC) const {
+	int nCone = bemCone.node().r.rows();
+	int nPatch = bemPatch.node().r.rows();
+	int nTotal = nCone + nPatch;
+	vacuumBC.setZero(nTotal);
+	for (int k = 0; k < nTotal; k++) {
+		if (k < nCone) {			
+			vacuumBC(k) = 0.0;
+		}
+		else {
+			int kk = k - nCone;
+			double r = bemPatch.node().r(kk, 0), dr = bemPatch.node().r(kk, 1);
+			double z = bemPatch.node().z(kk, 0), dz = bemPatch.node().z(kk, 1);			
+			vacuumBC(k) = electricPotentialFarField(r, z, b);
+		}
+	}
+};
 
 void TaylorCone::SD2LR(const Eigen::MatrixXd &S, const Eigen::MatrixXd &D, int nSwap, Eigen::MatrixXd &L, Eigen::MatrixXd &R) {
 
@@ -385,15 +438,17 @@ void TaylorCone::SD2LR(const Eigen::MatrixXd &S, const Eigen::MatrixXd &D, int n
 
 }
 
-void TaylorCone::computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, Eigen::VectorXd &residue, Eigen::VectorXd &coord) {
+void TaylorCone::computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, const Eigen::VectorXd &psin
+	, Eigen::VectorXd &residue, Eigen::VectorXd &coord) {
 	const int nCone = bemCone.node().r.rows();
 	const int o = bemCone.settings.order();
 	residue.setZero(nCone);
 	coord.setZero(nCone);
-	Eigen::VectorXd h; h.setZero(nCone - 1);
-
-	for (int k = 0; k < h.size() ; k++) {
-		if (k / o == 0) {
+	Eigen::VectorXd h; 
+	h.setZero(nCone - 1);
+	
+	for (int k = 0; k < h.size() ; k++) {		
+		if (k % o == 0) {
 			h(k) = bemCone.e()[k / o].arc() * 1. / o;
 		}
 		else {
@@ -410,64 +465,106 @@ void TaylorCone::computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, 
 		double phis = 0.;
 
 		if (k != 0) {
-			if (k == nCone - 1) {
-				double h0 = h(k - 3), h1 = h(k - 2), h2 = h(k - 1);
-				double y0 = phi(k - 3), y1 = phi(k - 2), y2 = phi(k - 1), y3 = phi(k);
-				phis = fD3(1, h0, h1, h2, y0, y1, y2, y3, 3);
+			if (k == nCone - 1) {								
+				double hn3 = h(k-3);
+				double hn2 = h(k-2);				
+				double hn1 = h(k-1);
+				double yn3 = phi(k - 3);
+				double yn2 = phi(k - 2);				
+				double yn1 = phi(k - 1);				
+				double y0 = phi(k);		
+				phis = fD3(1, hn3,hn2,hn1, yn3, yn2, yn1, y0,3);
+				//phis = fD2(1,  hn2, hn1, yn2, yn1, y0, 2);
 
 			} 
-			else if (k == nCone - 2) {			
-				double h0 = h(k - 3), h1 = h(k - 2), h2 = h(k - 1);
-				double y0 = phi(k - 3), y1 = phi(k - 2), y2 = phi(k - 1), y3 = phi(k);
-				phis = fD3(1, h0, h1, h2, y0, y1, y2, y3, 3);
-
+			else if (k == nCone - 2) {
+				double hn3 = h(k - 3);
+				double hn2 = h(k - 2);
+				double hn1 = h(k - 1);
+				double h0 = h(k );
+				double yn3 = phi(k - 3);
+				double yn2 = phi(k - 2);
+				double yn1 = phi(k - 1);
+				double y0 = phi(k);
+				double y1 = phi(k+1);
+				phis = fD3(1, hn3, hn2, hn1, yn3, yn2, yn1, y0, 3);
+				//phis = fD2(1, hn1, h0, yn1, y0, y1, 2);
 			}
-			else if (k == nCone - 3) {				
-				double h0 = h(k - 3), h1 = h(k - 2), h2 = h(k - 1);
-				double y0 = phi(k - 3), y1 = phi(k - 2), y2 = phi(k - 1), y3 = phi(k);
-				phis = fD3(1, h0, h1, h2, y0, y1, y2, y3, 3);
-			}
-			else {
+			else if (k == nCone - 3) {
+				double hn3 = h(k - 3);
+				double hn2 = h(k - 2);
+				double hn1 = h(k - 1);
 				double h0 = h(k);
-				double h1 = h(k + 1);
-				double h2 = h(k + 2);
+				double yn3 = phi(k - 3);
+				double yn2 = phi(k - 2);
+				double yn1 = phi(k - 1);
 				double y0 = phi(k);
 				double y1 = phi(k + 1);
-				double y2 = phi(k + 2);
-				double y3 = phi(k + 3);
-				phis = fD3(1, h0, h1, h2, y0, y1, y2,y3, 0);
+				phis = fD3(1, hn3, hn2, hn1, yn3, yn2, yn1, y0, 3);
+				//phis = fD2(1, hn1, h0, yn1, y0, y1, 2);
+			}
+			else {
+				if (k % o == 0) {					
+					double h0 = h(k);
+					double h1 = h(k + 1);								
+					double h2 = h(k + 2);
+					double y0 = phi(k);
+					double y1 = phi(k + 1);					
+					double y2 = phi(k + 2);					
+					double y3 = phi(k + 3);
+					//phis = fD2(1, h0 , h1, y0, y1, y2, 0);
+					phis = fD3(1, h0, h1, h2, y0, y1, y2, y3, 0);
+				}
+				else {	
+					double h0 = h(k);
+					double h1 = h(k + 1);
+					double h2 = h(k + 2);
+					double y0 = phi(k);
+					double y1 = phi(k + 1);
+					double y2 = phi(k + 2);
+					double y3 = phi(k + 3);
+					//phis = fD2(1, h0 , h1, y0, y1, y2, 0);
+					phis = fD3(1, h0, h1, h2,y0, y1, y2, y3, 0);
+				}
 			}
 
 		}
 		
 
-
-		residue(k) += - curv(r, z, dr, dz, ddr, ddz);		
+		residue(k) += -curv(r, z, dr, dz, ddr, ddz) -0.5 * psin(k) * psin(k);		
 		residue(k) += -2. / 9. * xn * xn;
 		residue(k) += -1. / 3 * phi(k);
 		residue(k) += 0.5 * phis * phis + 2. *xs * phis / 3.;
+		/*if (k % o == 1) {
+			double rt = bemCone.node().r(k-1, 0), drt = bemCone.node().r(k-1, 1), ddrt = bemCone.node().r(k-1, 2);
+			double zt = bemCone.node().z(k-1, 0), dzt = bemCone.node().z(k-1, 1), ddzt = bemCone.node().z(k-1, 2);
+			
+			residue(k) = -curv(rt, zt, drt, dzt, ddrt, ddzt); };*/
 		//residue(k) = 2./ 3. * xs * phis - 1./3. * phi(k) ;
 		//residue(k) =  phi(k);
 		coord(k) = r;
 		
 	}
+
+	
 };
 
 
-void TaylorCone::perturbFluid(const Eigen::MatrixX2d &xyBase, const Bem &bemConeBase, const Bem &bemPatch, int iKnotPerturb, double epsilon, Eigen::VectorXd &output) {
+void TaylorCone::perturbFluid(const Eigen::MatrixX2d &xyBase, const Bem &bemConeBase, const Bem &bemPatch, int iKnotPerturb, double epsilon, Eigen::VectorXd &output
+	, Eigen::MatrixXd &SS, Eigen::MatrixXd &DD) {
 
-	//int nKnotPerturb = 10;
+	
 	Eigen::MatrixXd xy0 = xyBase;
-
 	
 	int iNodePerturb = bemConeBase.settings.order() * iKnotPerturb;
 	double dr = bemConeBase.node().r(iNodePerturb, 1); 
 	double dz = bemConeBase.node().z(iNodePerturb, 1);
-	xy0(iKnotPerturb, 0) += -dz / sqrt(dr * dr + dz * dz) * epsilon;
-	xy0(iKnotPerturb, 1) += dr / sqrt(dr * dr + dz * dz) * epsilon;
-	
-	
-	
+	//double perturbr = -dz / sqrt(dr * dr + dz * dz);
+	//double perturbz = dr / sqrt(dr * dr + dz * dz);
+	double perturbr = 0.0;
+	double perturbz = 1.0;
+	xy0(iKnotPerturb, 0) +=  perturbr* epsilon;
+	xy0(iKnotPerturb, 1) +=  perturbz* epsilon;		
 	
 	Bem bemConePerturb;
 	prepareBem(0, xy0, 0, bemConePerturb);
@@ -475,12 +572,28 @@ void TaylorCone::perturbFluid(const Eigen::MatrixX2d &xyBase, const Bem &bemCone
 	int n1 = bemPatch.node().r.rows();	
 	int nTotal = n0 + n1;
 
-	Eigen::MatrixXd S, D, L, R;
-	S.setZero(nTotal, nTotal);	D.setZero(nTotal, nTotal);
-	R.setZero(nTotal, nTotal);	L.setZero(nTotal, nTotal);
-	Bem::assembly(bemConePerturb, bemConePerturb, S, D);	Bem::assembly(bemConePerturb, bemPatch, S, D);
-	Bem::assembly(bemPatch, bemConePerturb, S, D);	Bem::assembly(bemPatch, bemPatch, S, D);
-	Eigen::VectorXd rhs, lhs;
+	Eigen::MatrixXd S, D,L, R;
+	
+	if (epsilon < 1e-10) {
+		S.setZero(nTotal, nTotal);	D.setZero(nTotal, nTotal);
+		R.setZero(nTotal, nTotal);	L.setZero(nTotal, nTotal);
+		double distance = 100000000.;
+		Bem::assembly(bemConePerturb, bemConePerturb, S, D, distance);
+		Bem::assembly(bemConePerturb, bemPatch, S, D, distance);
+		Bem::assembly(bemPatch, bemConePerturb, S, D, distance);
+		Bem::assembly(bemPatch, bemPatch, S, D, distance);		
+		SS = S;		DD = D;		
+	}
+	else {
+		S = SS;		D = DD;
+		R.setZero(nTotal, nTotal);	L.setZero(nTotal, nTotal);
+		S.topLeftCorner(n0, n0).setZero();
+		D.topLeftCorner(n0, n0).setZero();				
+		double distance = 100000000.;
+		Bem::assembly(bemConePerturb, bemConePerturb, S, D, distance);
+	}
+	
+	Eigen::VectorXd rhs;
 	setFluidBC(bemConePerturb, bemPatch, rhs);
 	for (int i = 0; i < D.rows(); i++) { D(i, i) = -(D.row(i).sum() - D(i, i)); }
 	D.row(n0 - 1) *= 0.;
@@ -490,8 +603,103 @@ void TaylorCone::perturbFluid(const Eigen::MatrixX2d &xyBase, const Bem &bemCone
 	TaylorCone::SD2LR(S, D, n0, L, R);
 	Eigen::VectorXd phi = L.fullPivLu().solve(R*rhs);
 	Eigen::VectorXd coord;
-	TaylorCone::computeResidue(bemConePerturb, phi, output, coord);
-	//std::ofstream file("./Output/answer0.txt");
-	//for (int k = 0; k < n0; k++) { file << coord(k) << '\t' << output(k) << '\n'; }
-	//file.close();
+	//TaylorCone::computeResidue(bemConePerturb, phi, output, coord);
+	
+	if (epsilon < 1e-10) {
+		std::ofstream file("./Output/res.txt");
+		//std::cout << "phi" << n0 << "\n"; 
+		for (int k = 0; k < n0; k++) { file << coord(k) << '\t' << output(k) << '\n'; }
+		file.close();
+	}
+};
+
+void TaylorCone::perturbVacuum(const Eigen::MatrixX2d &xyBase, const Bem &bemConeBase, const Bem &bemFluidPatch, const Bem &bemVacuumPatch
+	, int iKnotPerturb, double epsilon, Eigen::VectorXd &output
+	, Eigen::MatrixXd &SSF, Eigen::MatrixXd &DDF, Eigen::MatrixXd &SSV, Eigen::MatrixXd &DDV) {
+
+	Eigen::MatrixXd xy0 = xyBase;
+	int iNodePerturb = bemConeBase.settings.order() * iKnotPerturb;
+	double perturbr = 0.0;
+	double perturbz = 1.0;
+	xy0(iKnotPerturb, 0) += perturbr * epsilon;
+	xy0(iKnotPerturb, 1) += perturbz * epsilon;
+	Bem bemConePerturb;
+	prepareBem(0, xy0, 0, bemConePerturb);
+	int n0 = bemConePerturb.node().r.rows();
+	int n1Fluid = bemFluidPatch.node().r.rows();
+	int nTotalFluid = n0 + n1Fluid;
+	int n1Vacuum = bemVacuumPatch.node().r.rows();
+	int nTotalVacuum = n0 + n1Vacuum;
+
+	Eigen::MatrixXd SF, DF, LF, RF;
+	Eigen::MatrixXd SV, DV, LV, RV;
+
+	if (epsilon < 1e-10) {
+		double distance = 100000000.;
+		SF.setZero(nTotalFluid, nTotalFluid);	DF.setZero(nTotalFluid, nTotalFluid);		
+		Bem::assembly(bemConePerturb, bemConePerturb, SF, DF, distance);
+		Bem::assembly(bemConePerturb, bemFluidPatch, SF, DF, distance);
+		Bem::assembly(bemFluidPatch, bemConePerturb, SF, DF, distance);
+		Bem::assembly(bemFluidPatch, bemFluidPatch, SF, DF, distance);
+		SSF = SF;		DDF = DF;
+
+		SV.setZero(nTotalVacuum, nTotalVacuum);	DV.setZero(nTotalVacuum, nTotalVacuum);		
+		Bem::assembly(bemConePerturb, bemConePerturb, SV, DV, distance);
+		Bem::assembly(bemConePerturb, bemVacuumPatch, SV, DV, distance);
+		Bem::assembly(bemVacuumPatch, bemConePerturb, SV, DV, distance);
+		Bem::assembly(bemVacuumPatch, bemVacuumPatch, SV, DV, distance);
+		SSV = SV;		DDV = DV;
+
+
+
+	}
+	else {
+		double distance = 100000000.;
+		SF = SSF;		DF = DDF;		
+		SF.topLeftCorner(n0, n0).setZero();
+		DF.topLeftCorner(n0, n0).setZero();		
+		Bem::assembly(bemConePerturb, bemConePerturb, SF, DF, distance);
+		SV = SSV;		DV = DDV;
+		SV.topLeftCorner(n0, n0).setZero();
+		DV.topLeftCorner(n0, n0).setZero();
+		Bem::assembly(bemConePerturb, bemConePerturb, SV, DV, distance);
+	}
+
+	RF.setZero(nTotalFluid, nTotalFluid);	LF.setZero(nTotalFluid, nTotalFluid);
+	RV.setZero(nTotalVacuum, nTotalVacuum);	LV.setZero(nTotalVacuum, nTotalVacuum);
+	
+
+	
+	Eigen::VectorXd rhs;
+	setFluidBC(bemConePerturb, bemFluidPatch, rhs);	
+	for (int i = 0; i < DF.rows(); i++) { DF(i, i) = -(DF.row(i).sum() - DF(i, i)); }
+	DF.row(n0 - 1) *= 0.;
+	DF(n0 - 1, n0 - 1) = 1.0;
+	DF(n0 - 1, n0) = -1.0;
+	SF.row(n0 - 1) *= 0.;
+	TaylorCone::SD2LR(SF, DF, n0, LF, RF);
+	
+	Eigen::VectorXd lhs;
+	setVacuumBC(bemConePerturb, bemVacuumPatch, lhs);
+	DV = DV * -1;
+	for (int i = 0; i < DV.rows(); i++) { DV(i, i) = -(DV.row(i).sum() - DV(i, i)); }
+	DV.row(n0 - 1) *= 0.;
+	DV(n0 - 1, n0 - 1) = 1.0;
+	DV(n0 - 1, n0) = -1.0;
+	SV.row(n0 - 1) *= 0.;
+	TaylorCone::SD2LR(SV, DV, n0, LV, RV);
+
+
+	Eigen::VectorXd phi = LF.fullPivLu().solve(RF*rhs);
+	Eigen::VectorXd psin =RV.fullPivLu().solve(LV*lhs);
+	
+	Eigen::VectorXd coord;
+	TaylorCone::computeResidue(bemConePerturb, phi,psin, output, coord);
+	
+	if (epsilon < 1e-10) {
+		std::ofstream file("./Output/res.txt");
+		std::cout << "psin\t" << psin(0)/2. << "\n"; 		
+		for (int k = 0; k < n0; k++) { file << coord(k) << '\t' << psin(k) << '\n'; }
+		file.close();
+	}
 };

@@ -155,6 +155,8 @@ void Spline::computeCoef(Coef &x, BC bc0, BC bc1, double a0, double b0, double a
 	solver.compute(A);	
 	Eigen::VectorXd lhs = solver.solve(rhs);
 
+	//std::cout << lhs <<std::endl;
+
 	Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> > c1(lhs.data()  , lhs.size() / 2);
 	Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> > c2(lhs.data()+1, lhs.size() / 2);
 
@@ -179,7 +181,7 @@ void Spline::computeCoef(Coef &x, BC bc0, BC bc1, double a0, double b0, double a
 				+ 6. * (X(j + 1) - X(j));
 	}	
 	
-	//Eigen::IOFormat fmt(1, 10, ",", "\n", "[", "]");	
+	//Eigen::IOFormat fmt(3, 10, ",", "\n", "[", "]");	
 	//std::cout << Eigen::MatrixXd(A).format(fmt) <<std::endl;
 	
 };
@@ -223,9 +225,10 @@ double Spline::localArc(int i, double t, int nqd) const {
 double Spline::arc2t(int i, double arc, double eps, int nqd) const {
 	double x0 = 0.5;
 	double epsilon = eps;
-	double f0 = localArc(i, x0, nqd) - arc;
+	double f0 = localArc(i, x0, nqd) - arc;	
+
 	int counter = 0;
-	while (abs(f0) > epsilon ) {
+	while (abs(f0) > epsilon ) {		
 		double df0 = sqrt(pow((d(_x, i, x0))(1), 2.0) + pow((d(_y, i, x0))(1), 2.0));
 		x0 = x0 - f0 / df0;
 		f0 = localArc(i, x0, nqd) - arc;

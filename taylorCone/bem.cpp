@@ -59,7 +59,7 @@ int Bem::checkBounbdaryPosition(const Bem &bem0, const Bem &bem1) {
 
 };
 
-void Bem::assembly(const Bem &bem0, const Bem &bem1, Eigen::MatrixXd &S, Eigen::MatrixXd &D) {
+void Bem::assembly(const Bem &bem0, const Bem &bem1, Eigen::MatrixXd &S, Eigen::MatrixXd &D,double distance) {
 
 	const int nNode = bem0.node().r.rows();
 	const int shift0 = bem0.settings.indexShift();
@@ -543,44 +543,15 @@ const std::vector<double > Bem::singular(double tau, int idElement) const {
 					output[j] += 2. * f_single_K * QK * N * wt * ( 1. - tau);
 					output[o + 1 + j] += 2. * (f_double_K * QK + f_double_E * QE) * N * wt * (1. - tau);
 				}
-			}
-
-
-
-
-
+			}			   			 		  
 			
 			//*============ free memory 
 			delete[] qdx;
-			qdx = NULL;
-
-			
+			qdx = NULL;			
 
 		}
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-	
-
-
-
 		break;
-
-
 	}
-
-
-
-
-
 	/*case 2: {//printf("tau %1.5f\t %04d\n", tau, idElement);
 		if (abs(tau) < 1e-14 || abs(1.0 - tau) < 1e-14) {
 			qd = Element::getGLQuad(nqd_regular);

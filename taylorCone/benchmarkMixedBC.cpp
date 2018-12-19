@@ -1,214 +1,72 @@
 #include "stdafx.h"
 #include "numeric.h"
 #include "bem.h"
-#include "taylorCone.h"
 #include <omp.h>
 #include <Eigen/Dense>
-#include <string>
 //#define COMPUTE
 //#define TEST1
-//#define TEST2
-double inputC1 = -0.87318;
-double inputB0 = 1.7576;
-int nConeKnots = 100 + 1;
-void parse(int &argc, char ** &argv) {
-	switch (argc)	{	
-	
-	case 3: {
-		inputC1 = atof(argv[1]);
-		inputB0 = atof(argv[2]);
-		break;
-	}
 
-	case 4: {
-		inputC1 = atof(argv[1]);
-		inputB0 = atof(argv[2]);
-		nConeKnots = atoi(argv[3]);
-		break;
+Eigen::IOFormat fmt(Eigen::FullPrecision, 0, "\t", "\n", "", "", "", "");
+Eigen::MatrixX2d circle(double angle0, double angle1, int n) {
+	Eigen::MatrixX2d xy(n, 2);
+	xy.setZero();
+	for (int i = 0; i < n; i++) {
+		double t = ((double)i) / (n - 1.);
+		double theta = angle0 + (angle1-angle0) * t;// pow(t, 0.8);
+		xy(i, 0) = 2. * sin(theta) * (1 + 0.25 * cos(8. * theta - M_PI));
+		xy(i, 1) = 2. * cos(theta) * (1 + 0.25 * cos(8. * theta - M_PI));
 	}
-	default:
-		break;
+	if (abs(angle0) < 1e-12) { xy(0, 0) = 0.0; }
+	if (abs(angle1 - M_PI) < 1e-12) { xy(n-1, 0) = 0.0; }
+
+	return xy;
+}
+Eigen::MatrixX2d line(double x0, double y0, double x1, double y1, int n) {
+	Eigen::MatrixX2d xy(n, 2);
+	xy.setZero();
+	for (int i = 0; i < n; i++) {
+		double t = ((double)i) / (n - 1.);
+		t = pow(t, 1.0);
+		double xt = x0 + (x1 - x0) * t;
+		double yt = y0 + (y1 - y0) * t;
+		xy(i, 0) = xt;
+		xy(i, 1) = yt;
 	}
+	return xy;
 
 }
 
-Eigen::IOFormat fmt(Eigen::FullPrecision, 0, "\t", "\n", "", "", "", "");
+double phi(double r, double z) {
+	double xx = z * z /(r*r + z * z);
+	return  0.5 * ( 3 * z * z  - (r*r + z * z) *1.0);
+}
+double phin(double nr, double nz, double r, double z) {
+	//double x = z / sqrt(r*r + z * z);
+	return nr * (-r) + nz * (2. * z);
+}
+double curv(double r, double z ,double dr, double dz, double ddr, double ddz) {	
+	if (r > 1e-10) {
+		return	(dr * ddz - dz * ddr) / pow(dr * dr + dz * dz, 1.5) + dz / r / sqrt(dr * dr + dz * dz);
+	}
+	else {
+		return ddz / dr / dr * 2.;
+	}	
+}
+double curvAnalytic(double theta) {
+	if (theta > 1e-10) {
+		return (-8 * sqrt(2)*(33 * pow(cos(8 * theta), 3) + cos(8 * theta)*(560 - 32 * 1. / tan(theta)*sin(8 * theta)) + 4 * pow(cos(8 * theta), 2)*(-67 + 1. / tan(theta)*sin(8 * theta)) + 64 * (-4 + 3 * cos(16 * theta) + 1. / tan(theta)*(sin(8 * theta) + 4 * pow(sin(8 * theta), 3))) + 48 * sin(8 * theta)*sin(16 * theta))) / ((-4 + cos(8 * theta))*pow(97 - 16 * cos(8 * theta) - 63 * cos(16 * theta), 1.5));
+	}
+	else {
+		return 244. / 9;
+	}
+}
 void printSpline(const Spline &sp, const std::string &name) {
 	std::ofstream file(name);	
 	file << sp.x().format(fmt) << '\n'	<< sp.y().format(fmt) << '\n' << sp.h().format(fmt) << '\n';
 	file.close();
 }
 
-int main(int argc, char** argv) {
-
-	parse(argc, argv);
-	/*
-	double inputC1 = -0.87318;
-	double inputB0 = 1.7576;
-	int nConeKnots = 100 + 1;
-	if (argc > 1) {
-		inputC1 = atof(argv[1]);
-		inputB0 = atof(argv[2]);
-	}
-	*/
-	TaylorCone tc(inputC1, inputB0);
-	printf("----------a b c----------\n");
-	printf("a: %+18.15f\t%+18.16f\t%+18.16f\t%+18.16f\t%+18.16f\t\n", tc.a[0], tc.a[1], tc.a[2], tc.a[3], tc.a[4]);
-	printf("b: %+18.15f\t%+18.16f\t%+18.16f\t%+18.16f\t%+18.16f\t\n", tc.b[0], tc.b[1], tc.b[2], tc.b[3], tc.b[4]);
-	printf("c: %+18.15f\t%+18.16f\t%+18.16f\t%+18.16f\t%+18.16f\t\n", tc.c[0], tc.c[1], tc.c[2], tc.c[3], tc.c[4]);
-	printf("----------a b c----------\n");	
-	
-	int nElectricKnots = (int)floor((nConeKnots - 1) * 1) + 1;
-	int nVelocityKnots = (int)floor((nConeKnots - 1) * 2.5) + 1;
-	tc._xy0 = TaylorCone::generateCone(4, 50.,tc.c, nConeKnots);
-	tc._xy1 = TaylorCone::generateCircle(tc._xy0(tc._xy0.rows() - 1, 0), tc._xy0(tc._xy0.rows() - 1, 1), 1, (int)(nElectricKnots));
-	tc._xy2 = TaylorCone::generateCircle(tc._xy0(tc._xy0.rows() - 1, 0), tc._xy0(tc._xy0.rows() - 1, 1), 0, (int)(nVelocityKnots));
-
-	tc.prepareBem(0, tc._xy0, 0, tc.bem0);
-	int n0 = tc.bem0.node().r.rows();
-	printSpline(tc.bem0.sp(), "./Output/sp0.txt");
-
-
-	tc.prepareBem(1, tc._xy1, n0, tc.bem1);
-	int n1 = tc.bem1.node().r.rows();
-	printSpline(tc.bem1.sp(), "./Output/sp1.txt");
-
-	tc.prepareBem(2, tc._xy2, n0, tc.bem2);
-	int n2 = tc.bem2.node().r.rows();
-	printSpline(tc.bem2.sp(), "./Output/sp2.txt");	
-	
-	//int nTotal = n0 + n1;
-	
-	Eigen::VectorXd res, resPerturb,tmp;
-	double epsilon = 0.0001;
-	//Eigen::MatrixXd J(n0, nConeKnots - 1);
-	Eigen::MatrixXd J(nConeKnots, nConeKnots - 1);
-
-	
-	Eigen::MatrixXd SF0, DF0,SV0, DV0;
-	tc.perturbVacuum(tc._xy0, tc.bem0, tc.bem1, tc.bem2, 0, 0., res, SF0, DF0, SV0, DV0);
-	Eigen::VectorXd abc(nConeKnots) ,abcP(nConeKnots);
-	abc = Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> >(res.data(), nConeKnots);
-	
-	//Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> > abc(fk.data(), nConeKnots);
-	//printf("error = %5.5f\n", res.norm());
-	printf("error = %2.2e\n", res.norm());
-	for (int j = 0; j < J.cols(); j++) {		
-		printf("\r%03d", j);
-		tc.perturbVacuum(tc._xy0, tc.bem0, tc.bem1, tc.bem2, j, epsilon, resPerturb, SF0, DF0, SV0, DV0);
-		Eigen::VectorXd fk = (resPerturb - res) / epsilon;
-		abcP = Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> >(fk.data(), nConeKnots);
-		//J.col(j) = (resPerturb - res) / epsilon;
-		J.col(j) = abcP;		
-	}
-	printf("\n-----------------\n");
-		
-	
-	int counter = 1;
-
-	while (counter < 33)	{
-		//tmp = J.colPivHouseholderQr().solve(-res);
-		tmp = J.fullPivLu().solve(-abc);
-		for (int k = 0; k < tmp.size(); k++) {
-			int iNodePerturb = tc.bem0.settings.order() * k;
-			//double dr = tc.bem0.node().r(iNodePerturb, 1);
-			//double dz = tc.bem0.node().z(iNodePerturb, 1);
-			double perturbr = 0.0;
-			double perturbz = 1.0;
-			//double perturbr = -dz / sqrt(dr * dr + dz * dz);
-			//double perturbz = dr / sqrt(dr * dr + dz * dz);
-			tc._xy0(k, 0) += perturbr * tmp(k) * 0.99;
-			tc._xy0(k, 1) += perturbz * tmp(k) * 0.99;
-		}
-		tc.prepareBem(0, tc._xy0, 0, tc.bem0);	
-		printSpline(tc.bem0.sp(), "./Output/sp0.txt");
-		std::ofstream file("./Output/answer0.txt");
-		for (int k = 0; k < tmp.size(); k++) {
-			file << tc._xy0(k, 0) << '\t' << tc._xy0(k, 1) << '\n';
-		}
-		file.close();
-		res.setZero();
-
-		//tc.perturbFluid(tc._xy0, tc.bem0, tc.bem1, 0, 0., res,FS0,FD0);
-		tc.perturbVacuum(tc._xy0, tc.bem0, tc.bem1, tc.bem2, 0, 0., res, SF0, DF0, SV0, DV0);
-		abc = Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> >(res.data(), nConeKnots);
-
-
-		printf("error\t %2.2e\n", res.cwiseAbs().maxCoeff());
-		
-		if (counter % 4 == 0) {
-			J.setZero();
-			//tc.perturbFluid(tc._xy0, tc.bem0, tc.bem1, 0, 0., res);
-			for (int j = 0; j < J.cols(); j++) {
-				printf("\r%03d", j);
-				tc.perturbVacuum(tc._xy0, tc.bem0, tc.bem1, tc.bem2, j, epsilon, resPerturb, SF0, DF0, SV0, DV0);
-				Eigen::VectorXd fk = (resPerturb - res) / epsilon;
-				abcP = Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> >(fk.data(), nConeKnots);
-				//J.col(j) = (resPerturb - res) / epsilon;
-				J.col(j) = abcP;
-			}
-		}
-		
-		counter = counter + 1;
-		//std::cout << res << "\n";
-		std::cout << tc.bem0.sp().y()(0, 2)/ pow(tc.bem0.sp().x()(0, 1),2.0) <<"\n";
-	}
-	
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	// ------------------------------------	
-	
-	//Eigen::MatrixXd S, D, L, R;		
-	//S.setZero(nTotal, nTotal);	D.setZero(nTotal, nTotal);
-	//R.setZero(nTotal, nTotal);	L.setZero(nTotal, nTotal);	
-	//Bem::assembly(tc.bem0, tc.bem0, S, D);	Bem::assembly(tc.bem0, tc.bem1, S, D);
-	//Bem::assembly(tc.bem1, tc.bem0, S, D);	Bem::assembly(tc.bem1, tc.bem1, S, D);	
-	//Eigen::VectorXd rhs, lhs;
-	//tc.setFluidBC(tc.bem0, tc.bem1, rhs);
-	//for (int i = 0; i < D.rows(); i++) {	D(i, i) = -(D.row(i).sum() - D(i, i));}
-	//D.row(n0 - 1) *= 0.;
-	//D(n0 - 1, n0 - 1) = 1.0;
-	//D(n0 - 1, n0) = -1.0;
-	//S.row(n0 - 1) *= 0.;	
-	//TaylorCone::SD2LR(S, D, n0, L, R);
-	//Eigen::VectorXd phi = L.fullPivLu().solve(R*rhs);	
-	//Eigen::VectorXd residue, coord;
-	//TaylorCone::computeResidue(tc.bem0, phi, residue, coord);
-
-	
-
-
-
-	//std::ofstream file("./Output/answer0.txt");
-	//for (int k = 0; k < n0; k++) {	file << coord(k) <<'\t' << residue(k) << '\n';	}
-	//file.close();
-
-	//file.open("./Output/xy0.txt");
-	//file << tc._xy0 << '\n';
-	//file.close();
-	//file.open("./Output/xy1.txt");
-	//file << tc._xy1 << '\n';
-	//file.close();
-	//file.open("./Output/xy2.txt");
-	//file << tc._xy2 << '\n';
-	//file.close();
-
-
-#ifdef TEST1
+int main() {
 	int elementOrder = 2;
 	for (int global = 7; global < 21; global++) {
 		int n = (int)pow(sqrt(2.0), global) + 1;		
@@ -242,6 +100,8 @@ int main(int argc, char** argv) {
 		D.setZero(nTotal, nTotal);
 		R.setZero(nTotal, nTotal);
 		L.setZero(nTotal, nTotal);
+
+		
 		
 		B.setIdentity();
 		B *= 0.5;
@@ -252,6 +112,7 @@ int main(int argc, char** argv) {
 		Bem::assembly(bem0, bem1, S, D);						
 		Bem::assembly(bem1, bem0, S, D);		
 	    Bem::assembly(bem1, bem1, S, D);		
+		
 		
 		D = D + B;				
 				
@@ -295,6 +156,9 @@ int main(int argc, char** argv) {
 		R.bottomLeftCorner(n1, n0) = S.bottomLeftCorner(n1, n0);
 		R.bottomRightCorner(n1, n1) = -D.bottomRightCorner(n1, n1);
 
+		//std::cout <<bem0.e()[0].t()[1] << std::endl;
+
+
 		Eigen::VectorXd answer =  R.fullPivLu().solve(L*lhs);
 		Eigen::VectorXd errorDirchlet(n0), errorNeumann(n1);
 		for (int kk = 0; kk < n0; kk++) { errorDirchlet(kk) = answer(kk) - rhs(kk); }		
@@ -305,8 +169,7 @@ int main(int argc, char** argv) {
 			errorNeumann.cwiseAbs().maxCoeff(), 
 			errorCurvature.cwiseAbs().maxCoeff()
 		);
-}
-#endif // TEST2
+
 #ifdef TEST1
 
 		Eigen::MatrixX2d xy0 = circle(M_PI, n);
@@ -395,8 +258,7 @@ int main(int argc, char** argv) {
 #endif // COMPUTE
 		
 		
-
+	}	
 	return 0;
 }
-
 

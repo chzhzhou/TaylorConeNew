@@ -169,7 +169,6 @@
   <ItemGroup>
     <ClInclude Include="bem.h" />
     <ClInclude Include="element.h" />
-    <ClInclude Include="Header.h" />
     <ClInclude Include="numeric.h" />
     <ClInclude Include="spline.h" />
     <ClInclude Include="stdafx.h" />
@@ -189,6 +188,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="taylorCone.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="Resource\abcFromOldFiles.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

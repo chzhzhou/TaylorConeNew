@@ -2,7 +2,7 @@
 #ifndef TAYLORCONE_H
 #define TAYLORCONE_H
 #include "bem.h"
-#include <Eigen/Dense>
+#include <Eigen\Dense>
 
 class TaylorCone {
 
@@ -20,7 +20,12 @@ public:
 	void computeCoefabc(double c1, double b0);
 	void prepareBem(int type, const Eigen::MatrixX2d &xy, int shift, Bem &bem);
 	void setFluidBC(const Bem &bemCone, const Bem &bemPatch, Eigen::VectorXd &fluidBC) const;
-	void perturbFluid(const Eigen::MatrixX2d &xy, const Bem &bemCone, const Bem &bemPatch, int iKnotPerturb, double epsilon, Eigen::VectorXd &output);
+	void setVacuumBC(const Bem &bemCone, const Bem &bemPatch, Eigen::VectorXd &vacuumBC) const;
+	void perturbFluid(const Eigen::MatrixX2d &xy, const Bem &bemCone, const Bem &bemPatch, 
+		int iKnotPerturb, double epsilon, Eigen::VectorXd &output, Eigen::MatrixXd &S, Eigen::MatrixXd &D);
+	void perturbVacuum(const Eigen::MatrixX2d &xy, const Bem &bemCone, const Bem &bemVelocityPatch, const Bem &bemElectricPatch,
+		int iKnotPerturb, double epsilon, Eigen::VectorXd &output,  Eigen::MatrixXd &SSF, Eigen::MatrixXd &DDF, Eigen::MatrixXd &SSV, Eigen::MatrixXd &DDV);
+
 
 
 public:
@@ -36,12 +41,15 @@ public:
 	static void circleDerivativeBegin(const Eigen::MatrixX2d &xy,	double &dx, double &ddx, double &dy, double &ddy);
 	static void coneDerivativeEnd(const Eigen::MatrixX2d &xy, double c[5], double &dx, double &ddx, double &dy, double &ddy);
 	static double harmonicGrow(double r, double z, int l, int divide = 0);
+	static double dHarmonicGrowdR(double r, double z, int l, int divide = 0);
 	static double harmonicDecay(double r, double z, int l, int divide = 0);
+	static double dHarmonicDecaydR(double r, double z, int l, int divide = 0);
 	static double velocityPotentialFarField(double r, double z, const double (&a)[5]);
+	static double electricPotentialFarField(double r, double z, const double(&b)[5]);
 
 	static void SD2LR(const Eigen::MatrixXd &S, const Eigen::MatrixXd &D, int nSwap, Eigen::MatrixXd &L, Eigen::MatrixXd &R);
 	static double curv(double r, double z, double dr, double dz, double ddr, double ddz);
-	static void computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, Eigen::VectorXd &residue, Eigen::VectorXd &coord);
+	static void computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, const Eigen::VectorXd &psin, Eigen::VectorXd &residue, Eigen::VectorXd &coord);
 
 	
 
