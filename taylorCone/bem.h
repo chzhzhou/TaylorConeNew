@@ -4,7 +4,7 @@
 #ifndef M_PI
 #define M_PI   3.14159265358979323846264338327950288
 #endif // !M_PI
-#include <Eigen\Core>
+#include <Eigen/Core>
 #include "spline.h"
 #include "element.h"
 #include <vector>
@@ -23,9 +23,14 @@ public:
 	//const Eigen::MatrixX3d &z() const { return _z; };
 	const Node &node() const { return _node; };
 	const std::vector<double > regular (double rp, double zp, int idElement) const;
+	const std::vector<double > regularDr(double rp, double zp, int idElement) const;
+	const std::vector<double > regularDz(double rp, double zp, int idElement) const;
 	const std::vector<double > axis (double zp, int idElement) const;
 	const std::vector<double > singular (double tau, int idElement) const;
 	static void assembly(const Bem &source, const Bem &reciever, Eigen::MatrixXd &S, Eigen::MatrixXd &D, double distance = 10000000.);
+	static double assembly(double rp, double zp, const Bem &reciever, const Eigen::VectorXd &q, const Eigen::VectorXd &p);
+	static double assemblyDr(double rp, double zp, const Bem &reciever, const Eigen::VectorXd &q, const Eigen::VectorXd &p);
+	static double assemblyDz(double rp, double zp, const Bem &reciever, const Eigen::VectorXd &q, const Eigen::VectorXd &p);
 
 
 

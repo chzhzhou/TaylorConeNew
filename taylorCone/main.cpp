@@ -10,20 +10,28 @@
 //#define TEST2
 double inputC1 = -0.87318;
 double inputB0 = 1.7576;
-int nConeKnots = 100 + 1;
+//double inputC1 =0.0;
+//double inputB0 = 1.15;
+int nConeKnots = 200 + 1;
+double rTruncate = 50.;
 void parse(int &argc, char ** &argv) {
 	switch (argc)	{	
-	
 	case 3: {
 		inputC1 = atof(argv[1]);
 		inputB0 = atof(argv[2]);
 		break;
 	}
-
 	case 4: {
 		inputC1 = atof(argv[1]);
 		inputB0 = atof(argv[2]);
 		nConeKnots = atoi(argv[3]);
+		break;
+	}
+	case 5: {
+		inputC1 = atof(argv[1]);
+		inputB0 = atof(argv[2]);
+		nConeKnots = atoi(argv[3]);
+		rTruncate = atof(argv[4]);
 		break;
 	}
 	default:
@@ -40,27 +48,17 @@ void printSpline(const Spline &sp, const std::string &name) {
 }
 
 int main(int argc, char** argv) {
-
 	parse(argc, argv);
-	/*
-	double inputC1 = -0.87318;
-	double inputB0 = 1.7576;
-	int nConeKnots = 100 + 1;
-	if (argc > 1) {
-		inputC1 = atof(argv[1]);
-		inputB0 = atof(argv[2]);
-	}
-	*/
 	TaylorCone tc(inputC1, inputB0);
-	printf("----------a b c----------\n");
-	printf("a: %+18.15f\t%+18.16f\t%+18.16f\t%+18.16f\t%+18.16f\t\n", tc.a[0], tc.a[1], tc.a[2], tc.a[3], tc.a[4]);
-	printf("b: %+18.15f\t%+18.16f\t%+18.16f\t%+18.16f\t%+18.16f\t\n", tc.b[0], tc.b[1], tc.b[2], tc.b[3], tc.b[4]);
-	printf("c: %+18.15f\t%+18.16f\t%+18.16f\t%+18.16f\t%+18.16f\t\n", tc.c[0], tc.c[1], tc.c[2], tc.c[3], tc.c[4]);
-	printf("----------a b c----------\n");	
+	printf("--------------------a b c--------------------\n");
+	printf("a: %+18.15f\t%+18.15f\t%+18.15f\t%+18.15f\t%+18.15f\t\n", tc.a[0], tc.a[1], tc.a[2], tc.a[3], tc.a[4]);
+	printf("b: %+18.15f\t%+18.15f\t%+18.15f\t%+18.15f\t%+18.15f\t\n", tc.b[0], tc.b[1], tc.b[2], tc.b[3], tc.b[4]);
+	printf("c: %+18.15f\t%+18.15f\t%+18.15f\t%+18.15f\t%+18.15f\t\n", tc.c[0], tc.c[1], tc.c[2], tc.c[3], tc.c[4]);
+	printf("--------------------a b c--------------------\n");	
 	
-	int nElectricKnots = (int)floor((nConeKnots - 1) * 1) + 1;
-	int nVelocityKnots = (int)floor((nConeKnots - 1) * 2.5) + 1;
-	tc._xy0 = TaylorCone::generateCone(4, 50.,tc.c, nConeKnots);
+	int nElectricKnots = (int)floor((nConeKnots - 1) * 0.9) + 1;
+	int nVelocityKnots = (int)floor((nConeKnots - 1) * 2.3) + 1;
+	tc._xy0 = TaylorCone::generateCone(4, rTruncate,tc.c, nConeKnots,TaylorCone::gridDistribution);
 	tc._xy1 = TaylorCone::generateCircle(tc._xy0(tc._xy0.rows() - 1, 0), tc._xy0(tc._xy0.rows() - 1, 1), 1, (int)(nElectricKnots));
 	tc._xy2 = TaylorCone::generateCircle(tc._xy0(tc._xy0.rows() - 1, 0), tc._xy0(tc._xy0.rows() - 1, 1), 0, (int)(nVelocityKnots));
 
@@ -81,8 +79,8 @@ int main(int argc, char** argv) {
 	
 	Eigen::VectorXd res, resPerturb,tmp;
 	double epsilon = 0.0001;
-	//Eigen::MatrixXd J(n0, nConeKnots - 1);
-	Eigen::MatrixXd J(nConeKnots, nConeKnots - 1);
+	Eigen::MatrixXd J(n0, nConeKnots - 1);
+	//Eigen::MatrixXd J(nConeKnots, nConeKnots - 1);
 
 	
 	Eigen::MatrixXd SF0, DF0,SV0, DV0;
@@ -90,16 +88,17 @@ int main(int argc, char** argv) {
 	Eigen::VectorXd abc(nConeKnots) ,abcP(nConeKnots);
 	abc = Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> >(res.data(), nConeKnots);
 	
-	//Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> > abc(fk.data(), nConeKnots);
-	//printf("error = %5.5f\n", res.norm());
+	
+	
 	printf("error = %2.2e\n", res.norm());
 	for (int j = 0; j < J.cols(); j++) {		
 		printf("\r%03d", j);
+		fflush(stdout);
 		tc.perturbVacuum(tc._xy0, tc.bem0, tc.bem1, tc.bem2, j, epsilon, resPerturb, SF0, DF0, SV0, DV0);
 		Eigen::VectorXd fk = (resPerturb - res) / epsilon;
 		abcP = Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> >(fk.data(), nConeKnots);
-		//J.col(j) = (resPerturb - res) / epsilon;
-		J.col(j) = abcP;		
+		//J.col(j) = abcP;		
+		J.col(j) = fk;		
 	}
 	printf("\n-----------------\n");
 		
@@ -107,8 +106,8 @@ int main(int argc, char** argv) {
 	int counter = 1;
 
 	while (counter < 33)	{
-		//tmp = J.colPivHouseholderQr().solve(-res);
-		tmp = J.fullPivLu().solve(-abc);
+		tmp = J.colPivHouseholderQr().solve(-res);
+		//tmp = J.fullPivLu().solve(-abc);
 		for (int k = 0; k < tmp.size(); k++) {
 			int iNodePerturb = tc.bem0.settings.order() * k;
 			//double dr = tc.bem0.node().r(iNodePerturb, 1);
@@ -122,11 +121,11 @@ int main(int argc, char** argv) {
 		}
 		tc.prepareBem(0, tc._xy0, 0, tc.bem0);	
 		printSpline(tc.bem0.sp(), "./Output/sp0.txt");
-		std::ofstream file("./Output/answer0.txt");
+	/*	std::ofstream file("./Output/answer0.txt");
 		for (int k = 0; k < tmp.size(); k++) {
 			file << tc._xy0(k, 0) << '\t' << tc._xy0(k, 1) << '\n';
 		}
-		file.close();
+		file.close();*/
 		res.setZero();
 
 		//tc.perturbFluid(tc._xy0, tc.bem0, tc.bem1, 0, 0., res,FS0,FD0);
@@ -141,17 +140,18 @@ int main(int argc, char** argv) {
 			//tc.perturbFluid(tc._xy0, tc.bem0, tc.bem1, 0, 0., res);
 			for (int j = 0; j < J.cols(); j++) {
 				printf("\r%03d", j);
+				fflush(stdout);
 				tc.perturbVacuum(tc._xy0, tc.bem0, tc.bem1, tc.bem2, j, epsilon, resPerturb, SF0, DF0, SV0, DV0);
 				Eigen::VectorXd fk = (resPerturb - res) / epsilon;
 				abcP = Eigen::Map<Eigen::VectorXd, 0, Eigen::InnerStride<2> >(fk.data(), nConeKnots);
-				//J.col(j) = (resPerturb - res) / epsilon;
-				J.col(j) = abcP;
+				//J.col(j) = abcP;
+				J.col(j) = fk;
 			}
 		}
 		
 		counter = counter + 1;
 		//std::cout << res << "\n";
-		std::cout << tc.bem0.sp().y()(0, 2)/ pow(tc.bem0.sp().x()(0, 1),2.0) <<"\n";
+		std::cout << 2 * tc.bem0.sp().y()(0, 2)/ pow(tc.bem0.sp().x()(0, 1),2.0) <<"\n";
 	}
 	
 

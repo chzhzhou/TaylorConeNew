@@ -13,7 +13,7 @@
 #include <iostream>
 #include <fstream>
 #include "numeric.h"
-#include <Eigen\Dense>
+#include <Eigen/Dense>
 #include <omp.h>
 #include <vector>
 

@@ -2,21 +2,17 @@
 #ifndef TAYLORCONE_H
 #define TAYLORCONE_H
 #include "bem.h"
-#include <Eigen\Dense>
+#include <Eigen/Dense>
 
 class TaylorCone {
 
 public:
 	int _nSp0, _nSp1, _nSp2;
 	Eigen::MatrixX2d _xy0, _xy1, _xy2;
-	Bem bem0, bem1, bem2;
-	
-	double a[5];
-	double b[5];
-	double c[5];
+	Bem bem0, bem1, bem2;	
+	double a[5], b[5], c[5];
 
-	TaylorCone(double c1, double b0) { computeCoefabc(c1, b0); };
-	void init(double c1, double b0);
+	TaylorCone(double c1, double b0) { computeCoefabc(c1, b0); };	
 	void computeCoefabc(double c1, double b0);
 	void prepareBem(int type, const Eigen::MatrixX2d &xy, int shift, Bem &bem);
 	void setFluidBC(const Bem &bemCone, const Bem &bemPatch, Eigen::VectorXd &fluidBC) const;
@@ -24,14 +20,16 @@ public:
 	void perturbFluid(const Eigen::MatrixX2d &xy, const Bem &bemCone, const Bem &bemPatch, 
 		int iKnotPerturb, double epsilon, Eigen::VectorXd &output, Eigen::MatrixXd &S, Eigen::MatrixXd &D);
 	void perturbVacuum(const Eigen::MatrixX2d &xy, const Bem &bemCone, const Bem &bemVelocityPatch, const Bem &bemElectricPatch,
-		int iKnotPerturb, double epsilon, Eigen::VectorXd &output,  Eigen::MatrixXd &SSF, Eigen::MatrixXd &DDF, Eigen::MatrixXd &SSV, Eigen::MatrixXd &DDV);
-
+		int iKnotPerturb, double epsilon, Eigen::VectorXd &output,  
+		Eigen::MatrixXd &SSF, Eigen::MatrixXd &DDF, Eigen::MatrixXd &SSV, Eigen::MatrixXd &DDV) ;
+	static void scan(const Bem &bemCone, const Bem &bemPatch, const Eigen::VectorXd &q, const Eigen::VectorXd &p, const Eigen::VectorXd &ps,
+		double zLowerBound, double rUpperBound, int zGrid, int rGrid);
 
 
 public:
 	static Eigen::MatrixX2d generateCircle(double angle0, double angle1, double radius, int n);
 	static Eigen::MatrixX2d generateCircle(double r0, double z0, int end, int n);
-	static Eigen::MatrixX2d generateCone(double rc, double rstar, double c[5], int n);
+	static Eigen::MatrixX2d generateCone(double rc, double rstar, double c[5], int n, double(*foo)(double t, double q) = nullptr);
 
 
 	static double c3Cone(double r, double rc, double c[5]);
@@ -51,8 +49,7 @@ public:
 	static double curv(double r, double z, double dr, double dz, double ddr, double ddz);
 	static void computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, const Eigen::VectorXd &psin, Eigen::VectorXd &residue, Eigen::VectorXd &coord);
 
-	
-
+	static double gridDistribution(double t, double q);
 
 };
 

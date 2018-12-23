@@ -1,13 +1,7 @@
 #include "stdafx.h"
 #include "taylorCone.h"
 
-void TaylorCone::init(double c1, double b0){
-	computeCoefabc(c1, b0);
 
-
-
-
-}
 
 double TaylorCone::curv(double r, double z, double dr, double dz, double ddr, double ddz) {
 	if (r > 1e-11) {
@@ -117,6 +111,17 @@ double TaylorCone::fD4(int order, double h0, double h1, double h2, double h3, do
 	
 };
 
+double TaylorCone::gridDistribution(double t, double q) {
+	if (std::abs(t) < 1e-13) { return 0.0; }
+	else if (std::abs(t - 1.) < 1e-13) { return 1.0; }
+	else {
+		//double v = 0.5 + (-0.5 + 1/q)*pow(1. - 1.*t,2) + (-1. + 1.*t)/q;
+		//double v1 = 0.5 + (-0.5 + 1 / q)*pow(1. - 1.*(1. - 1.*t), 2) + (-1. + 1.*(1. - 1.*t)) / q;
+		return 2. / (1. + pow(-1. + 2. / t, q));
+	}
+
+	
+}
 void TaylorCone::circleDerivativeBegin(const Eigen::MatrixX2d &xy, double &dx, double &ddx, double &dy, double &ddy) {	
 	double x0 = xy(0, 0), y0 = xy(0, 1);
 	double x1 = xy(1, 0), y1 = xy(1, 1);
@@ -204,14 +209,13 @@ Eigen::MatrixX2d TaylorCone::generateCircle(double angle0, double angle1, double
 	xy.setZero();
 	for (int i = 0; i < n; i++) {
 		double t = ((double)i) / (n - 1.);
+
 		double theta = angle0 + (angle1 - angle0) * t;// pow(t, 0.8);
 		xy(i, 0) = radius * sin(theta) ;
 		xy(i, 1) = radius * cos(theta) ;
 	}
 	if (std::abs(angle0) < 1e-12) { xy(0, 0) = 0.0; }
 	if (std::abs(angle1 - M_PI) < 1e-12) { xy(n - 1, 0) = 0.0; }
-	
-
 	return xy;
 }
 
@@ -238,10 +242,13 @@ Eigen::MatrixX2d TaylorCone::generateCircle(double r0, double z0, int end, int n
 	return xy;
 }
 
-Eigen::MatrixX2d TaylorCone::generateCone(double rc, double rstar, double c[5], int n) {
+Eigen::MatrixX2d TaylorCone::generateCone(double rc, double rstar, double c[5], int n, double(*foo)(double t, double q)) {
 	Eigen::MatrixX2d xy(n, 2);
 	for (int i = 0; i < n; i++) {
 		double t = ((double)i) / (n - 1.);
+		if (foo != nullptr) {			
+			t = (*foo)(t, 1.15);
+		}		
 		double r = rstar * t;
 		xy(i, 0) = r;
 		xy(i, 1) = c3Cone(r,rc,c);
@@ -542,7 +549,7 @@ void TaylorCone::computeResidue(const Bem &bemCone, const Eigen::VectorXd &phi, 
 			residue(k) = -curv(rt, zt, drt, dzt, ddrt, ddzt); };*/
 		//residue(k) = 2./ 3. * xs * phis - 1./3. * phi(k) ;
 		//residue(k) =  phi(k);
-		coord(k) = r;
+		coord(k) = phis;
 		
 	}
 
@@ -650,8 +657,6 @@ void TaylorCone::perturbVacuum(const Eigen::MatrixX2d &xyBase, const Bem &bemCon
 		Bem::assembly(bemVacuumPatch, bemVacuumPatch, SV, DV, distance);
 		SSV = SV;		DDV = DV;
 
-
-
 	}
 	else {
 		double distance = 100000000.;
@@ -670,8 +675,8 @@ void TaylorCone::perturbVacuum(const Eigen::MatrixX2d &xyBase, const Bem &bemCon
 	
 
 	
-	Eigen::VectorXd rhs;
-	setFluidBC(bemConePerturb, bemFluidPatch, rhs);	
+	Eigen::VectorXd rhsF;
+	setFluidBC(bemConePerturb, bemFluidPatch, rhsF);	
 	for (int i = 0; i < DF.rows(); i++) { DF(i, i) = -(DF.row(i).sum() - DF(i, i)); }
 	DF.row(n0 - 1) *= 0.;
 	DF(n0 - 1, n0 - 1) = 1.0;
@@ -679,8 +684,8 @@ void TaylorCone::perturbVacuum(const Eigen::MatrixX2d &xyBase, const Bem &bemCon
 	SF.row(n0 - 1) *= 0.;
 	TaylorCone::SD2LR(SF, DF, n0, LF, RF);
 	
-	Eigen::VectorXd lhs;
-	setVacuumBC(bemConePerturb, bemVacuumPatch, lhs);
+	Eigen::VectorXd lhsV;
+	setVacuumBC(bemConePerturb, bemVacuumPatch, lhsV);
 	DV = DV * -1;
 	for (int i = 0; i < DV.rows(); i++) { DV(i, i) = -(DV.row(i).sum() - DV(i, i)); }
 	DV.row(n0 - 1) *= 0.;
@@ -690,16 +695,113 @@ void TaylorCone::perturbVacuum(const Eigen::MatrixX2d &xyBase, const Bem &bemCon
 	TaylorCone::SD2LR(SV, DV, n0, LV, RV);
 
 
-	Eigen::VectorXd phi = LF.fullPivLu().solve(RF*rhs);
-	Eigen::VectorXd psin =RV.fullPivLu().solve(LV*lhs);
+	Eigen::VectorXd lhsF = LF.partialPivLu().solve(RF*rhsF);
+	Eigen::VectorXd rhsV = RV.partialPivLu().solve(LV*lhsV);
+	Eigen::VectorXd phi = rhsF; 
+	phi.head(n0) = lhsF.head(n0);
+	Eigen::VectorXd phin = lhsF; 
+	phin.head(n0) = rhsF.head(n0);
+	Eigen::VectorXd psi = rhsV; 
+	psi.head(n0) = lhsV.head(n0);
+	Eigen::VectorXd psin = lhsV; 
+	psin.head(n0) = rhsV.head(n0);
+
 	
 	Eigen::VectorXd coord;
-	TaylorCone::computeResidue(bemConePerturb, phi,psin, output, coord);
+	TaylorCone::computeResidue(bemConePerturb, phi, psin, output, coord);
 	
 	if (epsilon < 1e-10) {
-		std::ofstream file("./Output/res.txt");
-		std::cout << "psin\t" << psin(0)/2. << "\n"; 		
-		for (int k = 0; k < n0; k++) { file << coord(k) << '\t' << psin(k) << '\n'; }
-		file.close();
+		//std::ofstream file("./Output/res.txt");
+		//std::cout << "psin\t" << rhsV(0)/2. << "\n";
+		//for (int k = 0; k < n0; k++) { file << coord(k) << '\t' << rhsV(k) << '\n'; }
+		//file.close();
+		scan(bemConePerturb,bemFluidPatch,phin,phi,coord,-6,0.0,80,100);
+
 	}
+};
+
+void TaylorCone::scan(const Bem &bemCone, const Bem &bemPatch, 
+	const Eigen::VectorXd &q, const Eigen::VectorXd &p, const Eigen::VectorXd &ps,
+	double zLowerBound, double rUpperBound, int zGrid, int rGrid) {
+
+	std::ofstream file("./Output/field.txt");	
+	Eigen::IOFormat fmt(Eigen::FullPrecision, 0, "\t", "\n", "", "", "", "");
+	Eigen::MatrixXd output;
+	output.setZero(zGrid * rGrid, 5);
+
+#pragma omp parallel for 
+	for (int j = 0; j < zGrid * rGrid; j++) {
+		int ir = j / zGrid;
+		int iz = j % zGrid;
+		double rp = bemCone.node().r(ir, 0);
+		double zpUpper = bemCone.node().z(ir, 0);
+
+		double drUpper = bemCone.node().r(ir, 1);
+		double dzUpper = bemCone.node().z(ir, 1);
+		double nrUpper = -dzUpper / sqrt(drUpper * drUpper + dzUpper * dzUpper);
+		double nzUpper = drUpper / sqrt(drUpper * drUpper + dzUpper * dzUpper);
+		double srUpper = nzUpper;
+		double szUpper = -nrUpper;
+
+		double zp = 0;
+		double fieldValue, fieldValueDr, fieldValueDz;
+
+		if (iz == 0) {
+			fieldValue = p(ir);			
+			zp = zpUpper;
+			fieldValueDr = ps(ir) * srUpper + q(ir) * nrUpper;
+			fieldValueDz = ps(ir) * szUpper + q(ir) * nzUpper;
+		}
+		else {
+			double t = (double)iz / (double)(zGrid - 1.);
+			t = gridDistribution(t, 1.1);
+			zp = zpUpper + (zLowerBound)* t;
+			fieldValue = Bem::assembly(rp, zp, bemCone, q, p);
+			fieldValue += Bem::assembly(rp, zp, bemPatch, q, p);
+
+			if (rp < 1e-13) { fieldValueDr = 0; }
+			else {
+				fieldValueDr = Bem::assemblyDr(rp, zp, bemCone, q, p);
+				fieldValueDr += Bem::assemblyDr(rp, zp, bemPatch, q, p);
+			}
+
+			fieldValueDz = Bem::assemblyDz(rp, zp, bemCone, q, p);
+			fieldValueDz += Bem::assemblyDz(rp, zp, bemPatch, q, p);
+
+		}
+
+		output(j, 0) = rp;
+		output(j, 1) = zp;
+		output(j, 2) = fieldValue;
+		output(j, 3) = fieldValueDr;
+		output(j, 4) = fieldValueDz;
+
+
+
+	}
+
+	file << output.format(fmt);
+	//for (int ir = 0; ir < rGrid; ir++) {
+	//	double rp = bemCone.node().r(ir, 0);
+	//	double zpUpper = bemCone.node().z(ir, 0);		
+	//	double fieldValue;
+	//	fieldValue = p(ir);
+	//	file << rp << '\t' << zpUpper  << '\t' << fieldValue << '\n';
+
+	//	for (int iz = 1; iz < zGrid; iz++) {
+	//		double t = (double)iz / (double)(zGrid - 1.);
+	//		t = gridDistribution(t, 1.1);
+	//		//double zp = zpUpper+ (zLowerBound - zpUpper) * t ;			
+	//		double zp = zpUpper + (zLowerBound) * t;
+	//		fieldValue = Bem::assembly(rp, zp, bemCone,q, p);
+	//		fieldValue += Bem::assembly(rp, zp, bemPatch, q, p);
+	//		file << rp << '\t' << zp << '\t' << fieldValue << '\n';
+	//	}
+
+	//}
+	file.close();
+
+	
+
+
 };

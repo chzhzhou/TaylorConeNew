@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "spline.h"
-#include <Eigen\Sparse>
+#include <Eigen/Sparse>
 #include "numeric.h"
 
 Spline& Spline::operator = (const Spline &sp) {
@@ -228,7 +228,7 @@ double Spline::arc2t(int i, double arc, double eps, int nqd) const {
 	double f0 = localArc(i, x0, nqd) - arc;	
 
 	int counter = 0;
-	while (abs(f0) > epsilon ) {		
+	while (std::abs(f0) > epsilon ) {		
 		double df0 = sqrt(pow((d(_x, i, x0))(1), 2.0) + pow((d(_y, i, x0))(1), 2.0));
 		x0 = x0 - f0 / df0;
 		f0 = localArc(i, x0, nqd) - arc;

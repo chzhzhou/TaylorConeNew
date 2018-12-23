@@ -52,7 +52,7 @@ int Bem::checkBounbdaryPosition(const Bem &bem0, const Bem &bem1) {
 	if (ds > 0 && ds == bem0.node().r.rows()) {
 		return 1;
 	}
-	if (ds < 0 && abs(ds) == bem1.node().r.rows()) {
+	if (ds < 0 && std::abs(ds) == bem1.node().r.rows()) {
 		return -1;
 	}
 	return 2;
@@ -75,7 +75,7 @@ void Bem::assembly(const Bem &bem0, const Bem &bem1, Eigen::MatrixXd &S, Eigen::
 
 #pragma omp parallel for 
 	for (int i = 0; i < nNode; i++) {		//std::cout << i << "\n";
-		if (abs(r(i)) < 1e-13) {			//printf("Axis %03d %16.16f: \n", i, abs(r(i)));
+		if (std::abs(r(i)) < 1e-13) {			//printf("Axis %03d %16.16f: \n", i, abs(r(i)));
 			for (int j = 0; j < nElem; j++) {
 				const std::vector<double > axisIntegral = bem1.axis(z(i), j);
 				for (int k = 0; k <= o; k++) {
@@ -133,7 +133,6 @@ void Bem::assembly(const Bem &bem0, const Bem &bem1, Eigen::MatrixXd &S, Eigen::
 			
 				break;
 			}
-
 			case -1: {
 				for (int j = 0; j < nElem; j++) {
 					if (i == 0 && j == nElem - 1) {
@@ -155,7 +154,6 @@ void Bem::assembly(const Bem &bem0, const Bem &bem1, Eigen::MatrixXd &S, Eigen::
 				}
 				break;
 			}
-
 			case 1: {
 				for (int j = 0; j < nElem; j++) {
 					if (i == nNode - 1 && j==0) {
@@ -164,10 +162,8 @@ void Bem::assembly(const Bem &bem0, const Bem &bem1, Eigen::MatrixXd &S, Eigen::
 							S(i + shift0, o * j + k + shift1) += singularIntegral[k];
 							D(i + shift0, o * j + k + shift1) += singularIntegral[o + 1 + k];
 						}
-
 					}
 					else {
-
 						const std::vector<double > regularIntegral = bem1.regular(r(i), z(i), j);
 						for (int k = 0; k <= o; k++) {
 							S(i + shift0, o * j + k + shift1) += regularIntegral[k];
@@ -177,7 +173,6 @@ void Bem::assembly(const Bem &bem0, const Bem &bem1, Eigen::MatrixXd &S, Eigen::
 				}
 				break;
 			}
-
 			default: {
 				for (int j = 0; j < nElem; j++) {
 					const std::vector<double > regularIntegral = bem1.regular(r(i), z(i), j);
@@ -188,81 +183,85 @@ void Bem::assembly(const Bem &bem0, const Bem &bem1, Eigen::MatrixXd &S, Eigen::
 				}
 				break;
 			}
-			
 			}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-			/*
-			for (int j = 0; j < i / o - 1 + (i % o); j++) {
-				const std::vector<double > regularIntegral = bem1.regular(r(i), z(i), j);
-				for (int k = 0; k <= o; k++) {
-					S(i + shift0, o * j + k + shift1) += regularIntegral[k];
-					D(i + shift0, o * j + k + shift1) += regularIntegral[o + 1 + k];
-				}
-			}
-			if (i % o == 0) {
-				int j = i / o - 1;
-
-				if (j >= 0 && j < nElem) {
-					std::vector<double > singularIntegral = bem1.singular(1, j);
-					for (int k = 0; k <= o; k++) {
-						S(i + shift0, o * j + k + shift1) += singularIntegral[k];
-						D(i + shift0, o * j + k + shift1) += singularIntegral[o + 1 + k];
-					}
-				}
-				
-				j = i / o;
-				if (j >= 0 && j < nElem) {
-					std::vector<double > singularIntegral = bem1.singular(0, j);
-					for (int k = 0; k <= o; k++) {
-						S(i + shift0, o * j + k + shift1) += singularIntegral[k];
-						D(i + shift0, o * j + k + shift1) += singularIntegral[o + 1 + k];
-					}
-				}
-			}
-			else {
-				int j = i / o;
-				std::vector<double > singularIntegral = bem1.singular(bem1.e()[j].t()[1], j);
-				for (int k = 0; k <= o; k++) {
-					S(i + shift0, o * j + k + shift1) += singularIntegral[k];
-					D(i + shift0, o * j + k + shift1) += singularIntegral[o + 1 + k];
-				}
-			}
-			for (int j = i / o + 1; j < nElem; j++) {
-				const std::vector<double > regularIntegral = bem1.regular(r(i), z(i), j);
-				for (int k = 0; k <= o; k++) {
-					S(i + shift0, o * j + k + shift1) += regularIntegral[k];
-					D(i + shift0, o * j + k + shift1) += regularIntegral[o + 1 + k];
-				}
-			}
-		*/
-		}
-
-		
-
-	
-		
+		}		
 	}
 }
 
+
+double Bem::assembly(double rp, double zp, const Bem &bem1, const Eigen::VectorXd &q, const Eigen::VectorXd &p) {
+	const int shift1 = bem1.settings.indexShift();
+	const int o = bem1.settings.order();
+	const int nElem = bem1.settings.nElm();
+	
+	Eigen::VectorXd S, D;
+	S.setZero(q.size());
+	D.setZero(p.size());	
+	
+	if (std::abs(rp) < 1e-13) {
+		for (int j = 0; j < nElem; j++) {
+			const std::vector<double > axisIntegral = bem1.axis(zp, j);
+			for (int k = 0; k <= o; k++) {
+				S(shift1 + o * j + k) += axisIntegral[k];
+				D(shift1 + o * j + k) += axisIntegral[o + 1 + k];
+			}
+		}
+	}
+	else {
+		for (int j = 0; j < nElem; j++) {
+			const std::vector<double > regularIntegral = bem1.regular(rp, zp, j);
+			for (int k = 0; k <= o; k++) {
+				S(o * j + k + shift1) += regularIntegral[k];
+				D(o * j + k + shift1) += regularIntegral[o + 1 + k];
+			}
+		}
+	}
+
+	return S.dot(q) - D.dot(p);
+}
+
+double Bem::assemblyDr(double rp, double zp, const Bem &bem1, const Eigen::VectorXd &q, const Eigen::VectorXd &p) {
+	const int shift1 = bem1.settings.indexShift();
+	const int o = bem1.settings.order();
+	const int nElem = bem1.settings.nElm();
+
+	Eigen::VectorXd S, D;
+	S.setZero(q.size());
+	D.setZero(p.size());
+
+
+	for (int j = 0; j < nElem; j++) {
+		const std::vector<double > regularIntegral = bem1.regularDr(rp, zp, j);
+		for (int k = 0; k <= o; k++) {
+			S(o * j + k + shift1) += regularIntegral[k];
+			D(o * j + k + shift1) += regularIntegral[o + 1 + k];
+		}
+	}
+
+
+	return S.dot(q) - D.dot(p);
+}
+
+double Bem::assemblyDz(double rp, double zp, const Bem &bem1, const Eigen::VectorXd &q, const Eigen::VectorXd &p) {
+	const int shift1 = bem1.settings.indexShift();
+	const int o = bem1.settings.order();
+	const int nElem = bem1.settings.nElm();
+
+	Eigen::VectorXd S, D;
+	S.setZero(q.size());
+	D.setZero(p.size());
+
+	for (int j = 0; j < nElem; j++) {
+		const std::vector<double > regularIntegral = bem1.regularDz(rp, zp, j);
+		for (int k = 0; k <= o; k++) {
+			S(o * j + k + shift1) += regularIntegral[k];
+			D(o * j + k + shift1) += regularIntegral[o + 1 + k];
+		}
+	}
+
+
+	return S.dot(q) - D.dot(p);
+}
 
 //------------local integration -------------
 
@@ -292,6 +291,84 @@ const std::vector<double > Bem::regular(double rp, double zp, int idElement) con
 	}
 	return output;
 };
+
+const std::vector<double > Bem::regularDr(double rp, double zp, int idElement) const {
+	const Element &ee = _e[idElement];
+	const int nqd = ee.r().size();
+	const int &o = ee.order();
+	const std::vector<std::vector<double>> &basis = ee.basis();
+	std::vector<double > output(2 * (o + 1));
+
+	for (int k = 0; k < nqd; k++) {
+		const double &r = ee.r()[k], &z = ee.z()[k], &dr = ee.dr()[k], &dz = ee.dz()[k], &J = ee.J()[k];
+		const double &ab = Numeric::qd_GL_x[nqd][k], &wt = Numeric::qd_GL_w[nqd][k];
+
+		double a, b, m;
+		double K, E;
+		double f_single_K, f_single_E, f_double_K, f_double_E;
+
+		f_single_E = (0.5*(pow(r, 3) - r * (rp + z - zp)*(rp - z + zp))) / (M_PI*rp*(pow(r - rp, 2) + pow(z - zp, 2))*sqrt(pow(r + rp, 2) + pow(z - zp, 2)));
+		f_single_K = (-0.5*r) / (M_PI*rp*sqrt(pow(r + rp, 2) + pow(z - zp, 2)));
+		f_double_E = (0.5*(dz*(pow(r, 6) - pow(r, 4)*(pow(rp, 2) - 2.*pow(z - zp, 2)) + pow(rp, 2)*pow(pow(rp, 2) + pow(z - zp, 2), 2) + pow(r, 2)*(-pow(rp, 4) - 12.*pow(rp, 2)*pow(z - zp, 2) + pow(z - zp, 4))) - dr * r*(pow(r, 4) - 7.*pow(rp, 4) + 2.*pow(r, 2)*(3.*pow(rp, 2) + pow(z - zp, 2)) - 6.*pow(rp, 2)*pow(z - zp, 2) + pow(z - zp, 4))*(z - zp))) / (M_PI*rp*pow(pow(r - rp, 2) + pow(z - zp, 2), 2)*pow(pow(r + rp, 2) + pow(z - zp, 2), 1.5));
+		f_double_K = (0.5*(-dz * (pow(r, 4) + pow(r, 2)*(-2.*pow(rp, 2) + pow(z - zp, 2)) + pow(rp, 2)*(pow(rp, 2) + pow(z - zp, 2))) + dr * r*(pow(r, 2) - pow(rp, 2) + pow(z - zp, 2))*(z - zp))) / (M_PI*rp*(pow(r - rp, 2) + pow(z - zp, 2))*pow(pow(r + rp, 2) + pow(z - zp, 2), 1.5));
+
+		abm(rp, zp, r, z, a, b, m);
+		Numeric::KEPQ(m, K, E);		
+		
+		for (int j = 0; j <= o; j++) {
+			const double &N = basis[j][k];
+			output[j] += (f_single_K * K + f_single_E * E) * J * N * wt;
+			output[o + 1 + j] += (f_double_K * K + f_double_E * E) * N * wt;
+		}
+	}
+	return output;
+};
+
+
+const std::vector<double > Bem::regularDz(double rp, double zp, int idElement) const {
+	const Element &ee = _e[idElement];
+	const int nqd = ee.r().size();
+	const int &o = ee.order();
+	const std::vector<std::vector<double>> &basis = ee.basis();
+	std::vector<double > output(2 * (o + 1));
+
+	for (int k = 0; k < nqd; k++) {
+		const double &r = ee.r()[k], &z = ee.z()[k], &dr = ee.dr()[k], &dz = ee.dz()[k], &J = ee.J()[k];
+		const double &ab = Numeric::qd_GL_x[nqd][k], &wt = Numeric::qd_GL_w[nqd][k];
+
+		double a, b, m;
+		double K, E;
+		double f_single_K, f_single_E, f_double_K, f_double_E;
+
+		//f_single_K = -0.5 / (M_PI*rp*sqrt(pow(r, 2) + 2.*r*rp + pow(rp, 2) + pow(z - zp, 2)));
+		f_single_E = (r*(z - zp)) / (M_PI*(pow(r - rp, 2) + pow(z - zp, 2))*sqrt(pow(r + rp, 2) + pow(z - zp, 2)));
+		f_double_E = (0.5*(2.*dr*r*(pow(r, 4) - 2.*pow(r, 2)*(pow(rp, 2) + pow(z - zp, 2)) + (pow(rp, 2) - 3.*pow(z - zp, 2))*(pow(rp, 2) + pow(z - zp, 2))) - dz * (z - zp)*(-7.*pow(r, 4) + pow(pow(rp, 2) + pow(z - zp, 2), 2) + 6.*pow(r, 2)*(rp + z - zp)*(rp - z + zp)))) / (M_PI*pow(pow(r - rp, 2) + pow(z - zp, 2), 2)*pow(pow(r + rp, 2) + pow(z - zp, 2), 1.5));
+		f_double_K = (0.5*(dz*(-pow(r, 2) + pow(rp, 2) + pow(z - zp, 2)) + 2.*dr*r*(z - zp))*(z - zp)) / (M_PI*(pow(r - rp, 2) + pow(z - zp, 2))*pow(pow(r + rp, 2) + pow(z - zp, 2), 1.5));
+
+		abm(rp, zp, r, z, a, b, m);
+		Numeric::KEPQ(m, K, E);
+
+		for (int j = 0; j <= o; j++) {
+			const double &N = basis[j][k];
+			output[j] += (f_single_E * E) * J  * N * wt;
+			output[o + 1 + j] += (f_double_K * K + f_double_E * E) * N * wt;
+		}
+	}
+	return output;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const std::vector<double > Bem::axis(double zp, int idElement) const  {
 	const Element &e = _e[idElement];
@@ -330,11 +407,11 @@ const std::vector<double > Bem::singular(double tau, int idElement) const {
 	std::vector<double > output(2 * (o + 1));
 	double rp = sp().d(sp().x(), idElement, tau)(0);
 	double zp = sp().d(sp().y(), idElement, tau)(0);
-	if (abs(tau) < 1e-12) {
+	if (std::abs(tau) < 1e-12) {
 		rp = node().r(idElement * o, 0);
 		zp = node().z(idElement * o, 0);
 	}
-	if (abs(1. - tau) < 1e-12) {
+	if (std::abs(1. - tau) < 1e-12) {
 		rp = node().r((idElement + 1) * o , 0);
 		zp = node().z((idElement + 1) * o, 0);
 	}
@@ -397,7 +474,7 @@ const std::vector<double > Bem::singular(double tau, int idElement) const {
 		break;
 	}
 	case 2: {		
-		if ((abs(tau) < 5.e-15) || (abs(1. - tau) < 5.e-15)) {
+		if ((std::abs(tau) < 5.e-15) || (std::abs(1. - tau) < 5.e-15)) {
 			double * qdx = NULL;
 			qdx = new double[nqd_regular];
 			for (int l = 0; l < nqd_regular; l++) {
