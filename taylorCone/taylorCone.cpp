@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "taylorCone.h"
 
-
+#define SCAN_NZ 80
+#define SCAN_NR 100
 
 double TaylorCone::curv(double r, double z, double dr, double dz, double ddr, double ddz) {
 	if (r > 1e-11) {
@@ -711,11 +712,27 @@ void TaylorCone::perturbVacuum(const Eigen::MatrixX2d &xyBase, const Bem &bemCon
 	TaylorCone::computeResidue(bemConePerturb, phi, psin, output, coord);
 	
 	if (epsilon < 1e-10) {
-		//std::ofstream file("./Output/res.txt");
+		std::ofstream file("./Output/phi.txt");
+		
+		Eigen::IOFormat fmt(Eigen::FullPrecision, 0, "\t", "\n", "", "", "", "");
+		file << phi.format(fmt);
+		file.close();
+		file.open("./Output/psin.txt");		
+		file << psin.format(fmt);;
+		file.close();
+		file.open("./Output/r.txt");
+		file << bemConePerturb.node().r.format(fmt);
+		file.close();
+		file.open("./Output/z.txt");
+		file << bemConePerturb.node().z.format(fmt);
+		file.close();
+		
+
 		//std::cout << "psin\t" << rhsV(0)/2. << "\n";
 		//for (int k = 0; k < n0; k++) { file << coord(k) << '\t' << rhsV(k) << '\n'; }
 		//file.close();
-		scan(bemConePerturb,bemFluidPatch,phin,phi,coord,-6,0.0,80,100);
+
+		scan(bemConePerturb,bemFluidPatch,phin,phi,coord,-6,0.0, SCAN_NZ, SCAN_NR);
 
 	}
 };
